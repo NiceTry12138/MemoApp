@@ -1,0 +1,30 @@
+[
+  {
+    "id": "task-1773490106772",
+    "type": "log",
+    "config": {
+      "name": "测试任务",
+      "startDate": "2026-03-14",
+      "endDate": "2026-03-23",
+      "isForever": false,
+      "cronExpression": "*/5 * * * * *",
+      "content": "别忘了面试",
+      "id": "task-1773490106772"
+    },
+    "status": "stopped"
+  },
+  {
+    "id": "task-1773491363110",
+    "type": "log",
+    "config": {
+      "name": "日志",
+      "startDate": "2026-03-14",
+      "endDate": "2026-03-25",
+      "isForever": false,
+      "cronExpression": "*/5 * * * * *",
+      "content": "乐元素",
+      "id": "task-1773491363110"
+    },
+    "status": "stopped"
+  }
+]
