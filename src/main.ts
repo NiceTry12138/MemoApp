@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent } from 'electron';
 import * as path from 'path';
 import { TaskManager, TaskType } from './core/TaskManager';
+import { ClipboardManager } from './core/ClipboardManager';
 
 let mainWindow: BrowserWindow | null = null;
 const taskManager = new TaskManager();
+const clipboardManager = new ClipboardManager();
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -28,11 +30,15 @@ function createWindow() {
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
+
+    // Start clipboard monitoring
+    clipboardManager.startMonitoring(500);
 }
 
 app.on('ready', createWindow);
 
 app.on('window-all-closed', () => {
+    clipboardManager.stopMonitoring();
     if (process.platform !== 'darwin') {
         app.quit();
     }
@@ -98,4 +104,23 @@ ipcMain.handle('stop-task', async (event: IpcMainInvokeEvent, id: string) => {
 // Delete Task
 ipcMain.handle('delete-task', async (event: IpcMainInvokeEvent, id: string) => {
     return taskManager.deleteTask(id);
+});
+
+// --- Clipboard IPC Handlers ---
+
+ipcMain.handle('get-clipboard-history', async () => {
+    return clipboardManager.getHistory();
+});
+
+ipcMain.handle('clipboard-copy', async (event: IpcMainInvokeEvent, id: string) => {
+    return clipboardManager.copyToClipboard(id);
+});
+
+ipcMain.handle('clipboard-delete', async (event: IpcMainInvokeEvent, id: string) => {
+    return clipboardManager.deleteEntry(id);
+});
+
+ipcMain.handle('clipboard-clear', async () => {
+    clipboardManager.clearHistory();
+    return true;
 });

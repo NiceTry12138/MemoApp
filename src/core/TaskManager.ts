@@ -6,13 +6,14 @@ import { HttpTask, IHttpTaskConfig } from '../tasks/HttpTask';
 import { ExeTask, IExeTaskConfig } from '../tasks/ExeTask';
 import { PopupTask, IPopupTaskConfig } from '../tasks/PopupTask';
 import { LogTask, ILogTaskConfig } from '../tasks/LogTask';
+import { CountdownTask, ICountdownTaskConfig } from '../tasks/CountdownTask';
 
-export type TaskType = 'http' | 'exe' | 'popup' | 'log';
+export type TaskType = 'http' | 'exe' | 'popup' | 'log' | 'countdown';
 
 export interface ITaskDefinition {
     id: string;
     type: TaskType;
-    config: IHttpTaskConfig | IExeTaskConfig | IPopupTaskConfig | ILogTaskConfig;
+    config: IHttpTaskConfig | IExeTaskConfig | IPopupTaskConfig | ILogTaskConfig | ICountdownTaskConfig;
     status: 'running' | 'stopped';
 }
 
@@ -48,6 +49,9 @@ export class TaskManager {
                         case 'log':
                             task = new LogTask(def.config as ILogTaskConfig);
                             break;
+                        case 'countdown':
+                            task = new CountdownTask(def.config as ICountdownTaskConfig);
+                            break;
                         default: 
                             console.warn(`Unknown task type in saved file: ${def.type}`);
                             return;
@@ -60,10 +64,10 @@ export class TaskManager {
                 this.tasks.set(def.id, task);
                 this.taskDefinitions.set(def.id, def);
 
-                // Auto-resume running tasks (only if they are ScheduledTasks)
-                if (def.status === 'running' && task instanceof ScheduledTask) {
+                // Auto-resume running tasks (ScheduledTasks and CountdownTasks)
+                if (def.status === 'running' && (task instanceof ScheduledTask || task instanceof CountdownTask)) {
                     console.log(`Resuming task: ${def.config.name} (${def.id})`);
-                    task.start();
+                    (task as any).start();
                 }
             });
             
@@ -102,6 +106,9 @@ export class TaskManager {
             case 'log':
                 task = new LogTask(config as ILogTaskConfig);
                 break;
+            case 'countdown':
+                task = new CountdownTask(config as ICountdownTaskConfig);
+                break;
             default:
                 throw new Error(`Unknown task type: ${type}`);
         }
@@ -121,8 +128,8 @@ export class TaskManager {
 
     public startTask(id: string): boolean {
         const task = this.tasks.get(id);
-        if (task && task instanceof ScheduledTask) {
-            task.start();
+        if (task && (task instanceof ScheduledTask || task instanceof CountdownTask)) {
+            (task as any).start();
             const def = this.taskDefinitions.get(id);
             if (def) {
                 def.status = 'running';
@@ -135,8 +142,8 @@ export class TaskManager {
 
     public stopTask(id: string): boolean {
         const task = this.tasks.get(id);
-        if (task && task instanceof ScheduledTask) {
-            task.stop();
+        if (task && (task instanceof ScheduledTask || task instanceof CountdownTask)) {
+            (task as any).stop();
             const def = this.taskDefinitions.get(id);
             if (def) {
                 def.status = 'stopped';
@@ -172,6 +179,9 @@ export class TaskManager {
                     break;
                 case 'log':
                     task = new LogTask(config as ILogTaskConfig);
+                    break;
+                case 'countdown':
+                    task = new CountdownTask(config as ICountdownTaskConfig);
                     break;
                 default:
                     throw new Error(`Unknown task type: ${type}`);

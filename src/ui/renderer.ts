@@ -7,6 +7,10 @@ interface IElectronAPI {
     startTask: (id: string) => Promise<boolean>;
     stopTask: (id: string) => Promise<boolean>;
     deleteTask: (id: string) => Promise<boolean>;
+    getClipboardHistory: () => Promise<any[]>;
+    clipboardCopy: (id: string) => Promise<boolean>;
+    clipboardDelete: (id: string) => Promise<boolean>;
+    clipboardClear: () => Promise<boolean>;
 }
 
 console.log('Renderer script initializing...');
@@ -77,6 +81,18 @@ const CONFIG_TEMPLATES = {
     `,
     log: `
         <div class="form-group"><label>日志内容</label><textarea id="conf-content" rows="5" placeholder="在此输入备忘录内容..."></textarea></div>
+    `,
+    countdown: `
+        <div class="form-group"><label>倒计时时长</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="number" id="conf-cd-days" value="0" min="0" style="flex:1;"><span>天</span>
+                <input type="number" id="conf-cd-hours" value="0" min="0" max="23" style="flex:1;"><span>时</span>
+                <input type="number" id="conf-cd-minutes" value="1" min="0" max="59" style="flex:1;"><span>分</span>
+                <input type="number" id="conf-cd-seconds" value="0" min="0" max="59" style="flex:1;"><span>秒</span>
+            </div>
+        </div>
+        <div class="form-group"><label>弹窗标题</label><input type="text" id="conf-cd-title" placeholder="倒计时提醒"></div>
+        <div class="form-group"><label>弹窗内容</label><input type="text" id="conf-cd-message" placeholder="时间到！"></div>
     `
 };
 
@@ -166,6 +182,13 @@ const CONFIG_TEMPLATES = {
             (document.getElementById('conf-message') as HTMLInputElement).value = task.config.message || '';
         } else if (task.type === 'log') {
             (document.getElementById('conf-content') as HTMLTextAreaElement).value = task.config.content || '';
+        } else if (task.type === 'countdown') {
+            (document.getElementById('conf-cd-days') as HTMLInputElement).value = String(task.config.days || 0);
+            (document.getElementById('conf-cd-hours') as HTMLInputElement).value = String(task.config.hours || 0);
+            (document.getElementById('conf-cd-minutes') as HTMLInputElement).value = String(task.config.minutes || 0);
+            (document.getElementById('conf-cd-seconds') as HTMLInputElement).value = String(task.config.seconds || 0);
+            (document.getElementById('conf-cd-title') as HTMLInputElement).value = task.config.title || '';
+            (document.getElementById('conf-cd-message') as HTMLInputElement).value = task.config.message || '';
         }
     }, 0);
 };
@@ -232,6 +255,13 @@ async function updateTask() {
         config.message = (document.getElementById('conf-message') as HTMLInputElement).value;
     } else if (type === 'log') {
         config.content = (document.getElementById('conf-content') as HTMLTextAreaElement).value;
+    } else if (type === 'countdown') {
+        config.days = parseInt((document.getElementById('conf-cd-days') as HTMLInputElement).value) || 0;
+        config.hours = parseInt((document.getElementById('conf-cd-hours') as HTMLInputElement).value) || 0;
+        config.minutes = parseInt((document.getElementById('conf-cd-minutes') as HTMLInputElement).value) || 0;
+        config.seconds = parseInt((document.getElementById('conf-cd-seconds') as HTMLInputElement).value) || 0;
+        config.title = (document.getElementById('conf-cd-title') as HTMLInputElement).value || '倒计时提醒';
+        config.message = (document.getElementById('conf-cd-message') as HTMLInputElement).value || '时间到！';
     }
 
     try {
@@ -364,6 +394,13 @@ if (btnMiniToggle) {
         config.message = (document.getElementById('conf-message') as HTMLInputElement).value;
     } else if (type === 'log') {
         config.content = (document.getElementById('conf-content') as HTMLTextAreaElement).value;
+    } else if (type === 'countdown') {
+        config.days = parseInt((document.getElementById('conf-cd-days') as HTMLInputElement).value) || 0;
+        config.hours = parseInt((document.getElementById('conf-cd-hours') as HTMLInputElement).value) || 0;
+        config.minutes = parseInt((document.getElementById('conf-cd-minutes') as HTMLInputElement).value) || 0;
+        config.seconds = parseInt((document.getElementById('conf-cd-seconds') as HTMLInputElement).value) || 0;
+        config.title = (document.getElementById('conf-cd-title') as HTMLInputElement).value || '倒计时提醒';
+        config.message = (document.getElementById('conf-cd-message') as HTMLInputElement).value || '时间到！';
     }
 
     try {
@@ -400,10 +437,13 @@ function updateUIState() {
     // 1. Log tasks: No schedule, always date range
     if (type === 'log') {
         if (scheduleGroup) scheduleGroup.style.display = 'none';
-        // Force hide forever checkbox for logs? User requirement says "isForever: type === 'log' ? false : isForever"
-        // So we should probably hide the checkbox to avoid confusion
         taskForeverCheck.parentElement!.style.display = 'none';
         if (dateRangeGroup) dateRangeGroup.style.display = 'flex';
+    } else if (type === 'countdown') {
+        // Countdown: no cron schedule, no forever, date range optional
+        if (scheduleGroup) scheduleGroup.style.display = 'none';
+        taskForeverCheck.parentElement!.style.display = 'none';
+        if (dateRangeGroup) dateRangeGroup.style.display = 'none';
     } else {
         if (scheduleGroup) scheduleGroup.style.display = 'block';
         taskForeverCheck.parentElement!.style.display = 'flex';
@@ -621,25 +661,42 @@ function createListItem(task: any) {
     const statusClass = isRunning ? 'running' : 'stopped';
     const statusText = isRunning ? '运行中' : '已停止';
 
+    const typeLabels: Record<string, string> = {
+        http: '🌐 HTTP',
+        exe: '⚙️ EXE',
+        popup: '🔔 弹窗',
+        log: '📝 日志',
+        countdown: '⏰ 倒计时'
+    };
+
     let content = `
         <div class="task-header">
             <span class="task-title">${task.config.name}</span>
             <span class="status ${statusClass}">${statusText}</span>
         </div>
         <div class="task-details">
-            类型: ${task.type}<br>
+            类型: ${typeLabels[task.type] || task.type}<br>
     `;
 
-    if (task.type !== 'log') {
-        content += `下次执行: ${task.nextExecution}`;
-    } else {
+    if (task.type === 'countdown') {
+        const parts = [];
+        if (task.config.days) parts.push(`${task.config.days}天`);
+        if (task.config.hours) parts.push(`${task.config.hours}时`);
+        if (task.config.minutes) parts.push(`${task.config.minutes}分`);
+        if (task.config.seconds) parts.push(`${task.config.seconds}秒`);
+        content += `时长: ${parts.join('') || '0秒'}<br>`;
+        content += `提醒: ${task.config.title} - ${task.config.message}`;
+    } else if (task.type === 'log') {
         content += `内容: ${task.config.content || '无内容'}`;
+    } else {
+        content += `下次执行: ${task.nextExecution}`;
     }
 
+    const canStartStop = task.type !== 'log';
     content += `</div>
         <div class="task-controls">
-            ${task.type !== 'log' && !isRunning ? `<button class="btn-start" onclick="startTask('${task.id}')">启动</button>` : ''}
-            ${task.type !== 'log' && isRunning ? `<button class="btn-stop" onclick="stopTask('${task.id}')">停止</button>` : ''}
+            ${canStartStop && !isRunning ? `<button class="btn-start" onclick="startTask('${task.id}')">启动</button>` : ''}
+            ${canStartStop && isRunning ? `<button class="btn-stop" onclick="stopTask('${task.id}')">停止</button>` : ''}
             <button class="btn-nav" onclick="editTask('${task.id}')">编辑</button>
             <button class="btn-delete" onclick="deleteTask('${task.id}')">删除</button>
         </div>
@@ -660,7 +717,8 @@ function createListItem(task: any) {
 };
 
 (window as any).deleteTask = async (id: string) => {
-    if(!confirm('确定要删除这个任务吗？')) return;
+    if(!confirm('确定要删除这个任务吗？')) { window.focus(); return; }
+    window.focus(); // Restore keyboard focus after native confirm() dialog
     try { await (window as any).electronAPI.deleteTask(id); loadTasks(); } catch (e) { console.error(e); }
 };
 
@@ -669,3 +727,93 @@ updateUIState();
 updateCron();
 loadTasks();
 setInterval(loadTasks, 5000); // Auto refresh
+
+// --- Clipboard Panel Logic ---
+
+const clipboardPanel = document.getElementById('clipboard-panel') as HTMLDivElement;
+const clipboardList = document.getElementById('clipboard-list') as HTMLUListElement;
+const btnClipboardToggle = document.getElementById('btn-clipboard-toggle') as HTMLButtonElement;
+const btnCbClear = document.getElementById('btn-cb-clear') as HTMLButtonElement;
+const sidebarTasks = document.getElementById('sidebar-tasks') as HTMLDivElement;
+
+let isClipboardOpen = false;
+let cbRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+function toggleClipboardPanel(): void {
+    isClipboardOpen = !isClipboardOpen;
+    if (isClipboardOpen) {
+        sidebarTasks.classList.add('hidden');
+        clipboardPanel.classList.add('visible');
+        btnClipboardToggle.classList.add('active');
+        renderClipboardHistory();
+        cbRefreshTimer = setInterval(renderClipboardHistory, 1000);
+    } else {
+        clipboardPanel.classList.remove('visible');
+        sidebarTasks.classList.remove('hidden');
+        btnClipboardToggle.classList.remove('active');
+        if (cbRefreshTimer) {
+            clearInterval(cbRefreshTimer);
+            cbRefreshTimer = null;
+        }
+    }
+}
+
+btnClipboardToggle.addEventListener('click', toggleClipboardPanel);
+
+btnCbClear.addEventListener('click', async () => {
+    await (window as any).electronAPI.clipboardClear();
+    renderClipboardHistory();
+});
+
+async function renderClipboardHistory(): Promise<void> {
+    const history: any[] = await (window as any).electronAPI.getClipboardHistory();
+    clipboardList.innerHTML = '';
+
+    if (history.length === 0) {
+        clipboardList.innerHTML = '<div class="cb-empty">暂无剪贴板记录<br><small>复制文字或图片后会自动记录</small></div>';
+        return;
+    }
+
+    history.forEach((entry: any) => {
+        const li = document.createElement('li');
+        li.className = 'cb-item';
+
+        const time = new Date(entry.timestamp);
+        const timeStr = `${time.getMonth()+1}/${time.getDate()} ${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}:${time.getSeconds().toString().padStart(2,'0')}`;
+
+        let contentHtml = '';
+        if (entry.type === 'image' && entry.imageDataUrl) {
+            contentHtml = `<img src="${entry.imageDataUrl}" alt="[图片]">`;
+        } else {
+            // Escape HTML to prevent XSS
+            const escaped = (entry.preview || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            contentHtml = escaped;
+        }
+
+        li.innerHTML = `
+            <div class="cb-item-time">${timeStr}</div>
+            <div class="cb-item-content">${contentHtml}</div>
+            <div class="cb-item-actions">
+                <button class="btn-cb-copy" data-id="${entry.id}">复制</button>
+                <button class="btn-cb-delete" data-id="${entry.id}">删除</button>
+            </div>
+        `;
+
+        // Copy button
+        li.querySelector('.btn-cb-copy')!.addEventListener('click', async () => {
+            await (window as any).electronAPI.clipboardCopy(entry.id);
+            // Brief visual feedback
+            const btn = li.querySelector('.btn-cb-copy') as HTMLButtonElement;
+            btn.textContent = '✓ 已复制';
+            setTimeout(() => { btn.textContent = '复制'; }, 1000);
+        });
+
+        // Delete button
+        li.querySelector('.btn-cb-delete')!.addEventListener('click', async () => {
+            await (window as any).electronAPI.clipboardDelete(entry.id);
+            renderClipboardHistory();
+        });
+
+        clipboardList.appendChild(li);
+    });
+}

@@ -8,4 +8,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     startTask: (id: string) => ipcRenderer.invoke('start-task', id),
     stopTask: (id: string) => ipcRenderer.invoke('stop-task', id),
     deleteTask: (id: string) => ipcRenderer.invoke('delete-task', id),
+
+    // Clipboard
+    getClipboardHistory: () => ipcRenderer.invoke('get-clipboard-history'),
+    clipboardCopy: (id: string) => ipcRenderer.invoke('clipboard-copy', id),
+    clipboardDelete: (id: string) => ipcRenderer.invoke('clipboard-delete', id),
+    clipboardClear: () => ipcRenderer.invoke('clipboard-clear'),
 });
