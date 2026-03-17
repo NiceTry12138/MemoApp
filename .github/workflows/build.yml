@@ -65,15 +65,21 @@ jobs:
       - name: Compile TypeScript
         run: npm run build
 
+      - name: Override electron-builder binaries mirror (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          # The macOS GitHub runner's global npm config points electron-builder
+          # binaries to cdn.npmmirror.com, which does NOT host dmg-builder.
+          # Writing to GITHUB_ENV sets npm_config_* with higher priority than
+          # any .npmrc, reliably overriding the global runner config.
+          echo "npm_config_electron_builder_binaries_mirror=https://github.com/electron-userland/electron-builder-binaries/releases/download/" >> $GITHUB_ENV
+
       - name: Package with electron-builder
         env:
           # Disable OS code-signing on CI (add certs to Secrets to enable)
           CSC_IDENTITY_AUTO_DISCOVERY: false
           # electron-builder needs GH_TOKEN to read release info even with --publish never
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Force electron-builder tool binaries (e.g. dmg-builder) to download from
-          # GitHub releases instead of npmmirror, which does not host these files.
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
         run: npx electron-builder ${{ matrix.platform_flag }} --publish never
 
       - name: Upload build artifacts
