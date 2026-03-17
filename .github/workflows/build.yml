@@ -46,8 +46,6 @@ jobs:
             platform_flag: --win
           - os: ubuntu-latest
             platform_flag: --linux
-          - os: macos-latest
-            platform_flag: --mac
 
     steps:
       - name: Checkout
@@ -64,15 +62,6 @@ jobs:
 
       - name: Compile TypeScript
         run: npm run build
-
-      - name: Override electron-builder binaries mirror (macOS only)
-        if: runner.os == 'macOS'
-        run: |
-          # The macOS GitHub runner's global npm config points electron-builder
-          # binaries to cdn.npmmirror.com, which does NOT host dmg-builder.
-          # Writing to GITHUB_ENV sets npm_config_* with higher priority than
-          # any .npmrc, reliably overriding the global runner config.
-          echo "npm_config_electron_builder_binaries_mirror=https://github.com/electron-userland/electron-builder-binaries/releases/download/" >> $GITHUB_ENV
 
       - name: Package with electron-builder
         env:
