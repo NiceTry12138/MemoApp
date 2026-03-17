@@ -18,18 +18,26 @@
     "files": [
       "dist/**/*",
       "src/ui/**/*",
+      "src/assets/**/*",
       "package.json"
     ],
     "win": {
-      "target": [
-        "portable"
-      ],
-      "icon": "icon.ico",
+      "target": ["nsis", "portable"],
+      "icon": "src/assets/tray.png",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "src/assets/tray.png",
+      "category": "Utility"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "src/assets/tray.png"
     }
   },
   "keywords": [],

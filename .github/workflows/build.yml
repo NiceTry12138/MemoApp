@@ -1,0 +1,68 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'          # Trigger on version tags, e.g. v1.0.0, v2.3.1
+
+permissions:
+  contents: write     # Required to create/update GitHub Releases
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false   # Continue other platforms even if one fails
+      matrix:
+        include:
+          - os: windows-latest
+            platform_flag: --win
+            artifact_pattern: dist-release/*.exe dist-release/*.zip
+          - os: ubuntu-latest
+            platform_flag: --linux
+            artifact_pattern: dist-release/*.AppImage dist-release/*.deb
+          - os: macos-latest
+            platform_flag: --mac
+            artifact_pattern: dist-release/*.dmg
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Node.js ───────────────────────────────────────────────────────
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── 3. Install dependencies ──────────────────────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 4. TypeScript compile ────────────────────────────────────────────
+      - name: Compile TypeScript
+        run: npm run build
+
+      # ── 5. Package with electron-builder ─────────────────────────────────
+      # GH_TOKEN is used by electron-builder to upload artifacts to the release.
+      # It is automatically provided by GitHub Actions — no manual secret needed.
+      - name: Package application (${{ matrix.os }})
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Disable code signing on CI (set your own certs in Secrets to enable)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder ${{ matrix.platform_flag }} --publish always
+
+      # ── 6. Upload artifacts ───────────────────────────────────────────────
+      # electron-builder with --publish always uploads directly to the Release,
+      # but we also keep artifacts in the workflow run for traceability.
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: dist-release/
+          if-no-files-found: warn
