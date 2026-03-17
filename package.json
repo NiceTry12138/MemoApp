@@ -1,7 +1,7 @@
 {
   "name": "test",
   "version": "1.0.0",
-  "description": "",
+  "description": "A task scheduler desktop application",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc",
@@ -41,7 +41,10 @@
     }
   },
   "keywords": [],
-  "author": "",
+  "author": {
+    "name": "MemoApp",
+    "email": "noreply@memoapp.local"
+  },
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^25.5.0",
