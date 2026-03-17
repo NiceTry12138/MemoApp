@@ -3,12 +3,8 @@ import * as path from 'path';
 import { TaskManager } from './core/TaskManager';
 import { ClipboardManager } from './core/ClipboardManager';
 
-// Side-effect imports — each file calls TaskRegistry.register() at module load time
-import './tasks/HttpTask';
-import './tasks/ExeTask';
-import './tasks/PopupTask';
-import './tasks/LogTask';
-import './tasks/CountdownTask';
+// Single import registers all task types with TaskRegistry (see src/tasks/index.ts to add new ones)
+import './tasks';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;

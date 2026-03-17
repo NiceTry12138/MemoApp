@@ -1,9 +1,5 @@
-// Widget side-effect imports — each file calls TaskWidgetManager.register() at module load time
-import './widgets/HttpTaskWidget';
-import './widgets/ExeTaskWidget';
-import './widgets/PopupTaskWidget';
-import './widgets/LogTaskWidget';
-import './widgets/CountdownTaskWidget';
+// Single import registers all task widgets with TaskWidgetManager (see src/ui/widgets/index.ts to add new ones)
+import './widgets';
 import { TaskWidgetManager } from './TaskWidgetManager';
 
 // Define API (no export, pure interface)
