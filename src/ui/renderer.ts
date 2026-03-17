@@ -1,3 +1,11 @@
+// Widget side-effect imports — each file calls TaskWidgetManager.register() at module load time
+import './widgets/HttpTaskWidget';
+import './widgets/ExeTaskWidget';
+import './widgets/PopupTaskWidget';
+import './widgets/LogTaskWidget';
+import './widgets/CountdownTaskWidget';
+import { TaskWidgetManager } from './TaskWidgetManager';
+
 // Define API (no export, pure interface)
 interface IElectronAPI {
     getTasks: () => Promise<any[]>;
@@ -41,6 +49,14 @@ const selectedDateLabel = document.getElementById('selected-date-label') as HTML
 let currentDate = new Date(); // Month view
 let selectedDate = new Date(); // Selected day (default today)
 
+// Populate type select from registry (runs after all widgets are imported)
+TaskWidgetManager.getAll().forEach(([type, desc]) => {
+    const option = document.createElement('option');
+    option.value = type;
+    option.textContent = desc.label;
+    taskTypeSelect.appendChild(option);
+});
+
 // --- Helper Functions ---
 
 function toDateInputString(date: Date): string {
@@ -53,48 +69,7 @@ function areDatesEqual(d1: Date, d2: Date): boolean {
         d1.getDate() === d2.getDate();
 }
 
-// --- Config Templates (Chinese) ---
-const CONFIG_TEMPLATES = {
-    http: `
-        <div class="form-group"><label>请求地址 (URL)</label><input type="text" id="conf-url" placeholder="https://api.example.com"></div>
-        <div class="form-group"><label>请求方法</label><select id="conf-method"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select></div>
-        
-        <div class="form-group">
-            <label>请求头 (Headers) <button type="button" class="btn-add-row" onclick="addKvRow('headers-container')">+ 添加</button></label>
-            <div id="headers-container"></div>
-        </div>
-
-        <div class="form-group">
-            <label>Cookie <button type="button" class="btn-add-row" onclick="addKvRow('cookies-container')">+ 添加</button></label>
-            <div id="cookies-container"></div>
-        </div>
-
-        <div class="form-group"><label>请求体 (JSON)</label><textarea id="conf-body" rows="3">{}</textarea></div>
-    `,
-    exe: `
-        <div class="form-group"><label>程序路径</label><input type="text" id="conf-path" placeholder="C:\\Windows\\System32\\calc.exe"></div>
-        <div class="form-group"><label>启动参数 (空格分隔)</label><input type="text" id="conf-args" placeholder="/c dir"></div>
-    `,
-    popup: `
-        <div class="form-group"><label>弹窗标题</label><input type="text" id="conf-title" placeholder="提醒"></div>
-        <div class="form-group"><label>弹窗内容</label><input type="text" id="conf-message" placeholder="该喝水了！"></div>
-    `,
-    log: `
-        <div class="form-group"><label>日志内容</label><textarea id="conf-content" rows="5" placeholder="在此输入备忘录内容..."></textarea></div>
-    `,
-    countdown: `
-        <div class="form-group"><label>倒计时时长</label>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="number" id="conf-cd-days" value="0" min="0" style="flex:1;"><span>天</span>
-                <input type="number" id="conf-cd-hours" value="0" min="0" max="23" style="flex:1;"><span>时</span>
-                <input type="number" id="conf-cd-minutes" value="1" min="0" max="59" style="flex:1;"><span>分</span>
-                <input type="number" id="conf-cd-seconds" value="0" min="0" max="59" style="flex:1;"><span>秒</span>
-            </div>
-        </div>
-        <div class="form-group"><label>弹窗标题</label><input type="text" id="conf-cd-title" placeholder="倒计时提醒"></div>
-        <div class="form-group"><label>弹窗内容</label><input type="text" id="conf-cd-message" placeholder="时间到！"></div>
-    `
-};
+// CONFIG_TEMPLATES removed — templates are now stored in each widget file via TaskWidgetManager
 
 (window as any).editTask = (id: string) => {
     const tasks = (window as any).allTasksCache || [];
@@ -150,46 +125,9 @@ const CONFIG_TEMPLATES = {
 
     updateUIState(); // Refresh UI for type
 
-    // 4. Fill Type Specific Fields
-    // We need to wait for updateUIState to render the fields
+    // 4. Fill Type Specific Fields via TaskWidgetManager
     setTimeout(() => {
-        if (task.type === 'http') {
-            (document.getElementById('conf-url') as HTMLInputElement).value = task.config.url || '';
-            (document.getElementById('conf-method') as HTMLSelectElement).value = task.config.method || 'GET';
-            (document.getElementById('conf-body') as HTMLTextAreaElement).value = JSON.stringify(task.config.body || {}, null, 2);
-
-            // Restore KV Rows
-            const headersContainer = document.getElementById('headers-container');
-            if (headersContainer && task.config.headers) {
-                headersContainer.innerHTML = ''; // Clear empty rows
-                Object.entries(task.config.headers).forEach(([k, v]) => {
-                    headersContainer.insertAdjacentHTML('beforeend', createKvRowHTML(k, v as string));
-                });
-            }
-            const cookiesContainer = document.getElementById('cookies-container');
-            if (cookiesContainer && task.config.cookies) {
-                cookiesContainer.innerHTML = '';
-                Object.entries(task.config.cookies).forEach(([k, v]) => {
-                    cookiesContainer.insertAdjacentHTML('beforeend', createKvRowHTML(k, v as string));
-                });
-            }
-
-        } else if (task.type === 'exe') {
-            (document.getElementById('conf-path') as HTMLInputElement).value = task.config.filePath || '';
-            (document.getElementById('conf-args') as HTMLInputElement).value = (task.config.args || []).join(' ');
-        } else if (task.type === 'popup') {
-            (document.getElementById('conf-title') as HTMLInputElement).value = task.config.title || '';
-            (document.getElementById('conf-message') as HTMLInputElement).value = task.config.message || '';
-        } else if (task.type === 'log') {
-            (document.getElementById('conf-content') as HTMLTextAreaElement).value = task.config.content || '';
-        } else if (task.type === 'countdown') {
-            (document.getElementById('conf-cd-days') as HTMLInputElement).value = String(task.config.days || 0);
-            (document.getElementById('conf-cd-hours') as HTMLInputElement).value = String(task.config.hours || 0);
-            (document.getElementById('conf-cd-minutes') as HTMLInputElement).value = String(task.config.minutes || 0);
-            (document.getElementById('conf-cd-seconds') as HTMLInputElement).value = String(task.config.seconds || 0);
-            (document.getElementById('conf-cd-title') as HTMLInputElement).value = task.config.title || '';
-            (document.getElementById('conf-cd-message') as HTMLInputElement).value = task.config.message || '';
-        }
+        TaskWidgetManager.get(task.type)?.fillConfig(task.config);
     }, 0);
 };
 
@@ -237,32 +175,9 @@ async function updateTask() {
         cronExpression: cron
     };
 
-    // Gather specific config (Duplicate logic, could be refactored)
-    if (type === 'http') {
-        config.url = (document.getElementById('conf-url') as HTMLInputElement).value;
-        config.method = (document.getElementById('conf-method') as HTMLSelectElement).value;
-        config.headers = getKvData('headers-container');
-        config.cookies = getKvData('cookies-container');
-        try {
-            config.body = JSON.parse((document.getElementById('conf-body') as HTMLTextAreaElement).value);
-        } catch (e) { config.body = {}; }
-    } else if (type === 'exe') {
-        config.filePath = (document.getElementById('conf-path') as HTMLInputElement).value;
-        const argsStr = (document.getElementById('conf-args') as HTMLInputElement).value;
-        config.args = argsStr.split(' ').filter(s => s.length > 0);
-    } else if (type === 'popup') {
-        config.title = (document.getElementById('conf-title') as HTMLInputElement).value;
-        config.message = (document.getElementById('conf-message') as HTMLInputElement).value;
-    } else if (type === 'log') {
-        config.content = (document.getElementById('conf-content') as HTMLTextAreaElement).value;
-    } else if (type === 'countdown') {
-        config.days = parseInt((document.getElementById('conf-cd-days') as HTMLInputElement).value) || 0;
-        config.hours = parseInt((document.getElementById('conf-cd-hours') as HTMLInputElement).value) || 0;
-        config.minutes = parseInt((document.getElementById('conf-cd-minutes') as HTMLInputElement).value) || 0;
-        config.seconds = parseInt((document.getElementById('conf-cd-seconds') as HTMLInputElement).value) || 0;
-        config.title = (document.getElementById('conf-cd-title') as HTMLInputElement).value || '倒计时提醒';
-        config.message = (document.getElementById('conf-cd-message') as HTMLInputElement).value || '时间到！';
-    }
+    // Gather type-specific config via TaskWidgetManager
+    const typeConfig = TaskWidgetManager.get(type)?.readConfig() ?? {};
+    Object.assign(config, typeConfig);
 
     try {
         await (window as any).electronAPI.updateTask(id, type, config);
@@ -376,32 +291,9 @@ if (btnMiniToggle) {
         cronExpression: cron
     };
 
-    // Gather specific config
-    if (type === 'http') {
-        config.url = (document.getElementById('conf-url') as HTMLInputElement).value;
-        config.method = (document.getElementById('conf-method') as HTMLSelectElement).value;
-        config.headers = getKvData('headers-container');
-        config.cookies = getKvData('cookies-container');
-        try {
-            config.body = JSON.parse((document.getElementById('conf-body') as HTMLTextAreaElement).value);
-        } catch (e) { config.body = {}; }
-    } else if (type === 'exe') {
-        config.filePath = (document.getElementById('conf-path') as HTMLInputElement).value;
-        const argsStr = (document.getElementById('conf-args') as HTMLInputElement).value;
-        config.args = argsStr.split(' ').filter(s => s.length > 0);
-    } else if (type === 'popup') {
-        config.title = (document.getElementById('conf-title') as HTMLInputElement).value;
-        config.message = (document.getElementById('conf-message') as HTMLInputElement).value;
-    } else if (type === 'log') {
-        config.content = (document.getElementById('conf-content') as HTMLTextAreaElement).value;
-    } else if (type === 'countdown') {
-        config.days = parseInt((document.getElementById('conf-cd-days') as HTMLInputElement).value) || 0;
-        config.hours = parseInt((document.getElementById('conf-cd-hours') as HTMLInputElement).value) || 0;
-        config.minutes = parseInt((document.getElementById('conf-cd-minutes') as HTMLInputElement).value) || 0;
-        config.seconds = parseInt((document.getElementById('conf-cd-seconds') as HTMLInputElement).value) || 0;
-        config.title = (document.getElementById('conf-cd-title') as HTMLInputElement).value || '倒计时提醒';
-        config.message = (document.getElementById('conf-cd-message') as HTMLInputElement).value || '时间到！';
-    }
+    // Gather type-specific config via TaskWidgetManager
+    const typeConfig = TaskWidgetManager.get(type)?.readConfig() ?? {};
+    Object.assign(config, typeConfig);
 
     try {
         await (window as any).electronAPI.createTask(type, config);
@@ -456,8 +348,8 @@ function updateUIState() {
         }
     }
 
-    // 3. Update Config Fields
-    configContainer.innerHTML = CONFIG_TEMPLATES[type as keyof typeof CONFIG_TEMPLATES] || '';
+    // 3. Update Config Fields via TaskWidgetManager
+    configContainer.innerHTML = TaskWidgetManager.get(type)?.template || '';
 }
 
 taskTypeSelect.addEventListener('change', updateUIState);
@@ -661,13 +553,8 @@ function createListItem(task: any) {
     const statusClass = isRunning ? 'running' : 'stopped';
     const statusText = isRunning ? '运行中' : '已停止';
 
-    const typeLabels: Record<string, string> = {
-        http: '🌐 HTTP',
-        exe: '⚙️ EXE',
-        popup: '🔔 弹窗',
-        log: '📝 日志',
-        countdown: '⏰ 倒计时'
-    };
+    // Derive labels from the registry — no hard-coded map needed
+    const typeLabel = TaskWidgetManager.get(task.type)?.label ?? task.type;
 
     let content = `
         <div class="task-header">
@@ -675,7 +562,7 @@ function createListItem(task: any) {
             <span class="status ${statusClass}">${statusText}</span>
         </div>
         <div class="task-details">
-            类型: ${typeLabels[task.type] || task.type}<br>
+            类型: ${typeLabel}<br>
     `;
 
     if (task.type === 'countdown') {

@@ -1,8 +1,8 @@
 import { BaseTask, ITaskConfig } from '../core/BaseTask';
+import { TaskRegistry } from '../core/TaskRegistry';
 
 export interface ILogTaskConfig extends ITaskConfig {
-    content: string; // The content of the log
-    // LogTask doesn't need execution
+    content: string;
 }
 
 export class LogTask extends BaseTask {
@@ -13,7 +13,9 @@ export class LogTask extends BaseTask {
         this.content = config.content;
     }
 
-    // No start/stop needed, it's just data
+    // No scheduling needed — purely a data/note entry
     public start(): void {}
     public stop(): void {}
 }
+
+TaskRegistry.register('log', LogTask);

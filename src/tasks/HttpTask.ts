@@ -1,5 +1,6 @@
 import axios, { Method, AxiosRequestConfig } from 'axios';
 import { ScheduledTask, IScheduledTaskConfig } from '../core/ScheduledTask';
+import { TaskRegistry } from '../core/TaskRegistry';
 
 export interface IHttpTaskConfig extends IScheduledTaskConfig {
     url: string;
@@ -35,7 +36,6 @@ export class HttpTask extends ScheduledTask {
             data: this.body,
         };
 
-        // Add cookies to headers if present
         if (Object.keys(this.cookies).length > 0) {
             const cookieString = Object.entries(this.cookies)
                 .map(([key, value]) => `${key}=${value}`)
@@ -47,14 +47,16 @@ export class HttpTask extends ScheduledTask {
         try {
             const response = await axios(requestConfig);
             console.log(`HTTP Task Response Status: ${response.status}`);
-            // console.log('Response Data:', response.data); // Optional: log data
         } catch (error: any) {
             console.error(`HTTP Request failed: ${error.message}`);
             if (error.response) {
                 console.error(`Status: ${error.response.status}`);
                 console.error(`Data:`, error.response.data);
             }
-            throw error; // Re-throw to be caught by BaseTask
+            throw error;
         }
     }
 }
+
+// Self-register so TaskManager needs no switch statement for this type
+TaskRegistry.register('http', HttpTask);

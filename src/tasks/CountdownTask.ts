@@ -1,5 +1,6 @@
 import notifier from 'node-notifier';
 import { BaseTask, ITaskConfig } from '../core/BaseTask';
+import { TaskRegistry } from '../core/TaskRegistry';
 
 export interface ICountdownTaskConfig extends ITaskConfig {
     days: number;
@@ -30,12 +31,10 @@ export class CountdownTask extends BaseTask {
         this.message = config.message || '时间到！';
     }
 
-    /** Total duration in milliseconds */
     public getTotalMs(): number {
         return ((this.days * 24 + this.hours) * 60 + this.minutes) * 60000 + this.seconds * 1000;
     }
 
-    /** Remaining milliseconds (0 if not running) */
     public getRemainingMs(): number {
         if (!this.startedAt) return this.getTotalMs();
         const elapsed = Date.now() - this.startedAt;
@@ -47,20 +46,15 @@ export class CountdownTask extends BaseTask {
             console.log(`Countdown [${this.name}] is already running.`);
             return;
         }
-
         const totalMs = this.getTotalMs();
         if (totalMs <= 0) {
             console.log(`Countdown [${this.name}] duration is 0, firing immediately.`);
             this.fire();
             return;
         }
-
         this.startedAt = Date.now();
         console.log(`Countdown [${this.name}] started: ${totalMs / 1000}s`);
-
-        this.timer = setTimeout(() => {
-            this.fire();
-        }, totalMs);
+        this.timer = setTimeout(() => this.fire(), totalMs);
     }
 
     public stop(): void {
@@ -85,3 +79,5 @@ export class CountdownTask extends BaseTask {
         this.startedAt = null;
     }
 }
+
+TaskRegistry.register('countdown', CountdownTask);

@@ -1,7 +1,14 @@
 import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent, Tray, Menu, nativeImage } from 'electron';
 import * as path from 'path';
-import { TaskManager, TaskType } from './core/TaskManager';
+import { TaskManager } from './core/TaskManager';
 import { ClipboardManager } from './core/ClipboardManager';
+
+// Side-effect imports — each file calls TaskRegistry.register() at module load time
+import './tasks/HttpTask';
+import './tasks/ExeTask';
+import './tasks/PopupTask';
+import './tasks/LogTask';
+import './tasks/CountdownTask';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -136,7 +143,7 @@ ipcMain.handle('get-tasks', async () => {
     return taskManager.getAllTasks();
 });
 
-ipcMain.handle('create-task', async (event: IpcMainInvokeEvent, type: TaskType, config: any) => {
+ipcMain.handle('create-task', async (event: IpcMainInvokeEvent, type: string, config: any) => {
     try {
         const id = taskManager.createTask(type, config);
         return { success: true, id };
@@ -158,7 +165,7 @@ ipcMain.handle('toggle-mini-mode', async (event: IpcMainInvokeEvent, isMini: boo
     }
 });
 
-ipcMain.handle('update-task', async (event: IpcMainInvokeEvent, id: string, type: TaskType, config: any) => {
+ipcMain.handle('update-task', async (event: IpcMainInvokeEvent, id: string, type: string, config: any) => {
     try {
         const success = taskManager.updateTask(id, type, config);
         return { success };

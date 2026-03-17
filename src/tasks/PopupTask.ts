@@ -1,5 +1,6 @@
 import notifier from 'node-notifier';
 import { ScheduledTask, IScheduledTaskConfig } from '../core/ScheduledTask';
+import { TaskRegistry } from '../core/TaskRegistry';
 
 export interface IPopupTaskConfig extends IScheduledTaskConfig {
     title: string;
@@ -23,8 +24,8 @@ export class PopupTask extends ScheduledTask {
             notifier.notify({
                 title: this.title,
                 message: this.message,
-                wait: true // Wait for user action or timeout
-            }, (err, response, metadata) => {
+                wait: true
+            }, (err, _response, _metadata) => {
                 if (err) {
                     console.error('Notification error:', err);
                     reject(err);
@@ -36,3 +37,5 @@ export class PopupTask extends ScheduledTask {
         });
     }
 }
+
+TaskRegistry.register('popup', PopupTask);

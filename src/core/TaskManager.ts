@@ -1,19 +1,14 @@
 import { BaseTask } from './BaseTask';
 import { ScheduledTask } from './ScheduledTask';
-import { HttpTask, IHttpTaskConfig } from '../tasks/HttpTask';
-import { ExeTask, IExeTaskConfig } from '../tasks/ExeTask';
-import { PopupTask, IPopupTaskConfig } from '../tasks/PopupTask';
-import { LogTask, ILogTaskConfig } from '../tasks/LogTask';
-import { CountdownTask, ICountdownTaskConfig } from '../tasks/CountdownTask';
+import { CountdownTask } from '../tasks/CountdownTask';
+import { TaskRegistry } from './TaskRegistry';
 import { IRepository } from '../persistence/IRepository';
 import { JsonFileRepository } from '../persistence/JsonFileRepository';
 
-export type TaskType = 'http' | 'exe' | 'popup' | 'log' | 'countdown';
-
 export interface ITaskDefinition {
     id: string;
-    type: TaskType;
-    config: IHttpTaskConfig | IExeTaskConfig | IPopupTaskConfig | ILogTaskConfig | ICountdownTaskConfig;
+    type: string;   // Use string (not a union) so new types work without changing this file
+    config: any;
     status: 'running' | 'stopped';
 }
 
@@ -22,12 +17,6 @@ export class TaskManager {
     private taskDefinitions: Map<string, ITaskDefinition> = new Map();
     private readonly repository: IRepository<ITaskDefinition[]>;
 
-    /**
-     * @param repository - Persistence backend. Defaults to a plain JSON file
-     *                     so existing behaviour is preserved. Pass a different
-     *                     IRepository implementation to change the storage
-     *                     strategy (encrypted file, SQLite, remote DB, …).
-     */
     constructor(repository?: IRepository<ITaskDefinition[]>) {
         this.repository = repository ?? new JsonFileRepository<ITaskDefinition[]>('tasks.json');
         this.loadTasks();
@@ -38,37 +27,21 @@ export class TaskManager {
         if (!definitions) return;
 
         definitions.forEach(def => {
+            if (!TaskRegistry.has(def.type)) {
+                console.warn(`[TaskManager] Unknown task type "${def.type}" — skipping.`);
+                return;
+            }
             let task: BaseTask;
             try {
-                switch (def.type) {
-                    case 'http':
-                        task = new HttpTask(def.config as IHttpTaskConfig);
-                        break;
-                    case 'exe':
-                        task = new ExeTask(def.config as IExeTaskConfig);
-                        break;
-                    case 'popup':
-                        task = new PopupTask(def.config as IPopupTaskConfig);
-                        break;
-                    case 'log':
-                        task = new LogTask(def.config as ILogTaskConfig);
-                        break;
-                    case 'countdown':
-                        task = new CountdownTask(def.config as ICountdownTaskConfig);
-                        break;
-                    default:
-                        console.warn(`Unknown task type in saved data: ${(def as any).type}`);
-                        return;
-                }
+                task = TaskRegistry.create(def.type, def.config);
             } catch (err) {
-                console.error(`Error reconstructing task ${def.id}:`, err);
+                console.error(`[TaskManager] Failed to reconstruct task ${def.id}:`, err);
                 return;
             }
 
             this.tasks.set(def.id, task);
             this.taskDefinitions.set(def.id, def);
 
-            // Auto-resume running tasks
             if (def.status === 'running' && (task instanceof ScheduledTask || task instanceof CountdownTask)) {
                 console.log(`Resuming task: ${def.config.name} (${def.id})`);
                 (task as any).start();
@@ -79,25 +52,16 @@ export class TaskManager {
     }
 
     private saveTasks(): void {
-        const definitions = Array.from(this.taskDefinitions.values());
-        this.repository.save(definitions);
-        console.log('Tasks saved.');
+        this.repository.save(Array.from(this.taskDefinitions.values()));
     }
 
-    public createTask(type: TaskType, config: any): string {
+    public createTask(type: string, config: any): string {
+        if (!TaskRegistry.has(type)) throw new Error(`Unknown task type: "${type}"`);
+
         const id = config.id || `task-${Date.now()}`;
         config.id = id;
 
-        let task: BaseTask;
-        switch (type) {
-            case 'http':   task = new HttpTask(config as IHttpTaskConfig); break;
-            case 'exe':    task = new ExeTask(config as IExeTaskConfig); break;
-            case 'popup':  task = new PopupTask(config as IPopupTaskConfig); break;
-            case 'log':    task = new LogTask(config as ILogTaskConfig); break;
-            case 'countdown': task = new CountdownTask(config as ICountdownTaskConfig); break;
-            default: throw new Error(`Unknown task type: ${type}`);
-        }
-
+        const task = TaskRegistry.create(type, config);
         this.tasks.set(id, task);
         this.taskDefinitions.set(id, { id, type, config, status: 'stopped' });
 
@@ -128,22 +92,16 @@ export class TaskManager {
         return false;
     }
 
-    public updateTask(id: string, type: TaskType, config: any): boolean {
+    public updateTask(id: string, type: string, config: any): boolean {
         if (!this.tasks.has(id)) return false;
+        if (!TaskRegistry.has(type)) return false;
 
         this.stopTask(id);
         config.id = id;
 
         let task: BaseTask;
         try {
-            switch (type) {
-                case 'http':   task = new HttpTask(config as IHttpTaskConfig); break;
-                case 'exe':    task = new ExeTask(config as IExeTaskConfig); break;
-                case 'popup':  task = new PopupTask(config as IPopupTaskConfig); break;
-                case 'log':    task = new LogTask(config as ILogTaskConfig); break;
-                case 'countdown': task = new CountdownTask(config as ICountdownTaskConfig); break;
-                default: throw new Error(`Unknown task type: ${type}`);
-            }
+            task = TaskRegistry.create(type, config);
         } catch (e) {
             console.error(`Failed to update task ${id}:`, e);
             return false;

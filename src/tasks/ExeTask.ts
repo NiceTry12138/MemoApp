@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { ScheduledTask, IScheduledTaskConfig } from '../core/ScheduledTask';
+import { TaskRegistry } from '../core/TaskRegistry';
 
 export interface IExeTaskConfig extends IScheduledTaskConfig {
     filePath: string;
@@ -21,8 +22,8 @@ export class ExeTask extends ScheduledTask {
 
         return new Promise((resolve, reject) => {
             const child = spawn(this.filePath, this.args, {
-                stdio: 'inherit', // Pipe output to parent
-                shell: true // Use shell to execute
+                stdio: 'inherit',
+                shell: true
             });
 
             child.on('close', (code) => {
@@ -42,3 +43,5 @@ export class ExeTask extends ScheduledTask {
         });
     }
 }
+
+TaskRegistry.register('exe', ExeTask);
