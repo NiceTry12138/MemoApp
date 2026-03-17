@@ -49,8 +49,8 @@ function toDateInputString(date: Date): string {
 
 function areDatesEqual(d1: Date, d2: Date): boolean {
     return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
+        d1.getMonth() === d2.getMonth() &&
+        d1.getDate() === d2.getDate();
 }
 
 // --- Config Templates (Chinese) ---
@@ -103,7 +103,7 @@ const CONFIG_TEMPLATES = {
 
     // 1. Open Modal
     createModal.style.display = 'flex';
-    
+
     // 2. Set Mode to Edit
     (window as any).editingTaskId = id;
     document.querySelector('.modal-title')!.textContent = '编辑任务';
@@ -117,10 +117,10 @@ const CONFIG_TEMPLATES = {
     taskTypeSelect.value = task.type;
     taskNameInput.value = task.config.name;
     taskForeverCheck.checked = !!task.config.isForever;
-    
+
     if (task.config.startDate) taskStartInput.value = toDateInputString(new Date(task.config.startDate));
     if (task.config.endDate) taskEndInput.value = toDateInputString(new Date(task.config.endDate));
-    
+
     // Cron (Reverse engineer is hard, just show raw value if possible, or try to parse)
     // For now, we just set the hidden input and preview. 
     // If we want to restore interval inputs, we'd need to parse cron "*/5 * * * * *" -> 5 seconds.
@@ -128,7 +128,7 @@ const CONFIG_TEMPLATES = {
     if (task.config.cronExpression) {
         taskCronInput.value = task.config.cronExpression;
         cronPreview.textContent = `Cron: ${task.config.cronExpression}`;
-        
+
         // Try to restore interval inputs
         const parts = task.config.cronExpression.split(' ');
         if (parts.length >= 6) {
@@ -157,7 +157,7 @@ const CONFIG_TEMPLATES = {
             (document.getElementById('conf-url') as HTMLInputElement).value = task.config.url || '';
             (document.getElementById('conf-method') as HTMLSelectElement).value = task.config.method || 'GET';
             (document.getElementById('conf-body') as HTMLTextAreaElement).value = JSON.stringify(task.config.body || {}, null, 2);
-            
+
             // Restore KV Rows
             const headersContainer = document.getElementById('headers-container');
             if (headersContainer && task.config.headers) {
@@ -245,7 +245,7 @@ async function updateTask() {
         config.cookies = getKvData('cookies-container');
         try {
             config.body = JSON.parse((document.getElementById('conf-body') as HTMLTextAreaElement).value);
-        } catch(e) { config.body = {}; }
+        } catch (e) { config.body = {}; }
     } else if (type === 'exe') {
         config.filePath = (document.getElementById('conf-path') as HTMLInputElement).value;
         const argsStr = (document.getElementById('conf-args') as HTMLInputElement).value;
@@ -279,12 +279,12 @@ const openCreateBtn = document.getElementById('btn-open-create');
 if (openCreateBtn) {
     openCreateBtn.addEventListener('click', () => {
         createModal.style.display = 'flex';
-        
+
         // Reset Mode
         (window as any).editingTaskId = null;
         const modalTitle = document.querySelector('.modal-title');
         if (modalTitle) modalTitle.textContent = '创建新任务';
-        
+
         // Find confirm button
         const buttons = document.querySelectorAll('.modal button');
         let confirmBtn: HTMLButtonElement | null = null;
@@ -307,19 +307,19 @@ if (openCreateBtn) {
         taskNameInput.value = '';
         taskTypeSelect.value = 'http'; // Default
         taskForeverCheck.checked = false;
-        
+
         const todayStr = toDateInputString(new Date());
         taskStartInput.value = todayStr;
         taskEndInput.value = todayStr;
-        
+
         intervalValue.value = '5';
         intervalUnit.value = 'second';
-        
+
         // Clear dynamic fields
         configContainer.innerHTML = '';
-        
+
         updateCron();
-        
+
         // 3. Force Focus
         setTimeout(() => {
             taskTypeSelect.focus();
@@ -384,7 +384,7 @@ if (btnMiniToggle) {
         config.cookies = getKvData('cookies-container');
         try {
             config.body = JSON.parse((document.getElementById('conf-body') as HTMLTextAreaElement).value);
-        } catch(e) { config.body = {}; }
+        } catch (e) { config.body = {}; }
     } else if (type === 'exe') {
         config.filePath = (document.getElementById('conf-path') as HTMLInputElement).value;
         const argsStr = (document.getElementById('conf-args') as HTMLInputElement).value;
@@ -447,7 +447,7 @@ function updateUIState() {
     } else {
         if (scheduleGroup) scheduleGroup.style.display = 'block';
         taskForeverCheck.parentElement!.style.display = 'flex';
-        
+
         // 2. Toggle Date Range based on Forever
         if (isForever) {
             if (dateRangeGroup) dateRangeGroup.style.display = 'none';
@@ -471,16 +471,16 @@ function updateCron() {
     let cron = '';
 
     if (!val || parseInt(val) <= 0) {
-        cron = '* * * * * *'; 
+        cron = '* * * * * *';
     } else {
-        switch(unit) {
+        switch (unit) {
             case 'second': cron = `*/${val} * * * * *`; break;
             case 'minute': cron = `0 */${val} * * * *`; break;
-            case 'hour':   cron = `0 0 */${val} * * *`; break;
-            case 'day':    cron = `0 0 0 */${val} * *`; break;
+            case 'hour': cron = `0 0 */${val} * * *`; break;
+            case 'day': cron = `0 0 0 */${val} * *`; break;
         }
     }
-    
+
     cronPreview.textContent = `Cron: ${cron}`;
     taskCronInput.value = cron;
 }
@@ -505,7 +505,7 @@ intervalUnit.addEventListener('change', updateCron);
 async function renderCalendar() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    
+
     // Fetch tasks (Fetch BEFORE clearing grid to avoid race condition with double rendering)
     const tasks = await (window as any).electronAPI.getTasks();
 
@@ -528,7 +528,7 @@ async function renderCalendar() {
     for (let d = 1; d <= totalDays; d++) {
         const div = document.createElement('div');
         const dayDate = new Date(year, month, d);
-        
+
         div.className = 'cal-day';
         if (areDatesEqual(dayDate, new Date())) div.classList.add('today');
         if (areDatesEqual(dayDate, selectedDate)) div.classList.add('selected');
@@ -548,15 +548,15 @@ async function renderCalendar() {
 
             const start = task.config.startDate ? new Date(task.config.startDate) : null;
             const end = task.config.endDate ? new Date(task.config.endDate) : null;
-            
+
             // Re-create dates to avoid mutation issues if reused
             const s = start ? new Date(start) : null;
             const e = end ? new Date(end) : null;
             const dDate = new Date(dayDate);
 
-            if (s) s.setHours(0,0,0,0);
-            if (e) e.setHours(0,0,0,0);
-            dDate.setHours(0,0,0,0);
+            if (s) s.setHours(0, 0, 0, 0);
+            if (e) e.setHours(0, 0, 0, 0);
+            dDate.setHours(0, 0, 0, 0);
 
             if (s && e) {
                 return dDate >= s && dDate <= e;
@@ -574,7 +574,7 @@ async function renderCalendar() {
             const itemContent = document.createElement('div');
             itemContent.className = 'cal-task-item'; // Applying class to inner div if needed, but wait
             // The class is on the container in previous code block. Let's stick to the previous code structure.
-            
+
             // Actually, my previous StrReplace might have failed if context wasn't perfect.
             // Let's ensure we replace the whole block correctly.
             item.textContent = task.config.name;
@@ -617,23 +617,23 @@ function renderForeverTasks(tasks: any[]) {
 function renderDayTasks(tasks?: any[]) {
     // If called without tasks, use cache or fetch (but loadTasks calls this with tasks)
     const allTasks = tasks || (window as any).allTasksCache || [];
-    
+
     // Update Header
-    selectedDateLabel.textContent = `${selectedDate.getFullYear()}年${selectedDate.getMonth()+1}月${selectedDate.getDate()}日 任务`;
-    
+    selectedDateLabel.textContent = `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 任务`;
+
     dayList.innerHTML = '';
-    
+
     // Filter logic
     const dayTasks = allTasks.filter((t: any) => {
         if (t.config.isForever) return false;
-        
+
         const start = t.config.startDate ? new Date(t.config.startDate) : null;
         const end = t.config.endDate ? new Date(t.config.endDate) : null;
         const target = new Date(selectedDate);
-        target.setHours(0,0,0,0);
+        target.setHours(0, 0, 0, 0);
 
-        if (start) start.setHours(0,0,0,0);
-        if (end) end.setHours(0,0,0,0);
+        if (start) start.setHours(0, 0, 0, 0);
+        if (end) end.setHours(0, 0, 0, 0);
 
         if (start && end) {
             return target >= start && target <= end;
@@ -656,7 +656,7 @@ function renderDayTasks(tasks?: any[]) {
 function createListItem(task: any) {
     const li = document.createElement('li');
     li.className = 'task-item';
-    
+
     const isRunning = task.status === 'running';
     const statusClass = isRunning ? 'running' : 'stopped';
     const statusText = isRunning ? '运行中' : '已停止';
@@ -701,7 +701,7 @@ function createListItem(task: any) {
             <button class="btn-delete" onclick="deleteTask('${task.id}')">删除</button>
         </div>
     `;
-    
+
     li.innerHTML = content;
     return li;
 }
@@ -717,7 +717,7 @@ function createListItem(task: any) {
 };
 
 (window as any).deleteTask = async (id: string) => {
-    if(!confirm('确定要删除这个任务吗？')) { window.focus(); return; }
+    if (!confirm('确定要删除这个任务吗？')) { window.focus(); return; }
     window.focus(); // Restore keyboard focus after native confirm() dialog
     try { await (window as any).electronAPI.deleteTask(id); loadTasks(); } catch (e) { console.error(e); }
 };
@@ -779,7 +779,7 @@ async function renderClipboardHistory(): Promise<void> {
         li.className = 'cb-item';
 
         const time = new Date(entry.timestamp);
-        const timeStr = `${time.getMonth()+1}/${time.getDate()} ${time.getHours().toString().padStart(2,'0')}:${time.getMinutes().toString().padStart(2,'0')}:${time.getSeconds().toString().padStart(2,'0')}`;
+        const timeStr = `${time.getMonth() + 1}/${time.getDate()} ${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}:${time.getSeconds().toString().padStart(2, '0')}`;
 
         let contentHtml = '';
         if (entry.type === 'image' && entry.imageDataUrl) {

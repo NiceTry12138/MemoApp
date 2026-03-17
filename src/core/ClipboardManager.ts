@@ -1,6 +1,6 @@
 import { clipboard, nativeImage } from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
+import { IRepository } from '../persistence/IRepository';
+import { JsonFileRepository } from '../persistence/JsonFileRepository';
 
 export interface ClipboardEntry {
     id: string;
@@ -18,10 +18,14 @@ export class ClipboardManager {
     private timer: ReturnType<typeof setInterval> | null = null;
     private ignoreNext: boolean = false;
     private readonly MAX_HISTORY = 50;
-    private readonly SAVE_FILE: string;
+    private readonly repository: IRepository<ClipboardEntry[]>;
 
-    constructor() {
-        this.SAVE_FILE = path.join(process.cwd(), 'clipboard_history.json');
+    /**
+     * @param repository - Persistence backend. Defaults to a plain JSON file
+     *                     so existing behaviour is preserved.
+     */
+    constructor(repository?: IRepository<ClipboardEntry[]>) {
+        this.repository = repository ?? new JsonFileRepository<ClipboardEntry[]>('clipboard_history.json');
         this.loadHistory();
 
         // Initialize with current clipboard content so we don't record it as "new"
@@ -90,7 +94,6 @@ export class ClipboardManager {
     // --- Private Methods ---
 
     private poll(): void {
-        // Check if we should ignore this change (we just wrote to clipboard ourselves)
         if (this.ignoreNext) {
             // Update tracked values so the next poll doesn't see our write as "new"
             this.lastText = clipboard.readText() || '';
@@ -102,7 +105,7 @@ export class ClipboardManager {
 
         // Check for new text content
         const currentText = clipboard.readText() || '';
-        
+
         // Check for new image content
         const currentImage = clipboard.readImage();
         const hasImage = currentImage && !currentImage.isEmpty();
@@ -111,9 +114,8 @@ export class ClipboardManager {
         // Detect image change (prioritize image if both changed)
         if (hasImage && currentImageHash !== this.lastImageHash && currentImageHash !== '') {
             this.lastImageHash = currentImageHash;
-            this.lastText = currentText; // Also update text tracker
+            this.lastText = currentText;
 
-            // Create image entry
             const dataUrl = currentImage!.toDataURL();
             const size = currentImage!.getSize();
             this.addEntry({
@@ -129,9 +131,8 @@ export class ClipboardManager {
         // Detect text change
         if (currentText && currentText !== this.lastText) {
             this.lastText = currentText;
-            this.lastImageHash = currentImageHash; // Also update image tracker
+            this.lastImageHash = currentImageHash;
 
-            // Don't record empty or whitespace-only text
             if (currentText.trim().length === 0) return;
 
             this.addEntry({
@@ -162,32 +163,19 @@ export class ClipboardManager {
     }
 
     private hashImage(img: Electron.NativeImage): string {
-        // Use a simple hash of the PNG buffer size + first bytes for fast comparison
         const buf = img.toPNG();
         if (buf.length === 0) return '';
-        // Simple hash: size + first 64 bytes content
         const sample = buf.slice(0, Math.min(64, buf.length));
         return `${buf.length}-${Array.from(sample).reduce((a, b) => ((a << 5) - a + b) | 0, 0)}`;
     }
 
     private loadHistory(): void {
-        try {
-            if (fs.existsSync(this.SAVE_FILE)) {
-                const data = fs.readFileSync(this.SAVE_FILE, 'utf-8');
-                this.history = JSON.parse(data);
-                console.log(`Loaded ${this.history.length} clipboard entries.`);
-            }
-        } catch (e) {
-            console.error('Failed to load clipboard history:', e);
-            this.history = [];
-        }
+        const data = this.repository.load();
+        this.history = data ?? [];
+        console.log(`Loaded ${this.history.length} clipboard entries.`);
     }
 
     private saveHistory(): void {
-        try {
-            fs.writeFileSync(this.SAVE_FILE, JSON.stringify(this.history, null, 2));
-        } catch (e) {
-            console.error('Failed to save clipboard history:', e);
-        }
+        this.repository.save(this.history);
     }
 }

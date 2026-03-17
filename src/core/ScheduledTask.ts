@@ -40,10 +40,10 @@ export abstract class ScheduledTask extends BaseTask {
         }
 
         console.log(`Starting task [${this.name}] with schedule: ${this.cronExpression}`);
-        
+
         this.job = schedule.scheduleJob(this.cronExpression, async () => {
             const current = new Date();
-            
+
             // Runtime check for date range
             if (!this.isForever) {
                 if (this.startDate && current < this.startDate) return;

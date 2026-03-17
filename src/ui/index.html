@@ -1,127 +1,460 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>任务调度器</title>
     <style>
-        body { font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif; padding: 0; margin: 0; background: #f0f2f5; display: flex; height: 100vh; overflow: hidden; }
-        
-        /* Layout */
-        .sidebar-left { width: 280px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
-        .main-content { flex: 1; padding: 20px; display: flex; flex-direction: column; overflow-y: auto; }
-        .sidebar-right { width: 320px; background: white; border-left: 1px solid #ddd; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            padding: 0;
+            margin: 0;
+            background: #f0f2f5;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-        h2 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 1.1em; color: #333; }
-        
+        /* Layout */
+        .sidebar-left {
+            width: 280px;
+            background: white;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-right {
+            width: 320px;
+            background: white;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h2 {
+            margin-top: 0;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            font-size: 1.1em;
+            color: #333;
+        }
+
         /* Task List */
-        .task-list { list-style: none; padding: 0; flex: 1; overflow-y: auto; }
-        .task-item { border: 1px solid #eee; padding: 10px; margin-bottom: 10px; border-radius: 4px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-        .task-title { font-weight: bold; margin: 0; font-size: 0.95em; }
-        .status { padding: 2px 6px; border-radius: 3px; font-size: 0.7em; font-weight: bold; }
-        .status.running { background: #e6fffa; color: #00b894; }
-        .status.stopped { background: #fff5f5; color: #d63031; }
-        
-        .task-details { font-size: 0.8em; color: #666; margin-top: 5px; line-height: 1.4; }
-        .task-controls { margin-top: 8px; display: flex; gap: 5px; }
-        
+        .task-list {
+            list-style: none;
+            padding: 0;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .task-item {
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .task-title {
+            font-weight: bold;
+            margin: 0;
+            font-size: 0.95em;
+        }
+
+        .status {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+        }
+
+        .status.running {
+            background: #e6fffa;
+            color: #00b894;
+        }
+
+        .status.stopped {
+            background: #fff5f5;
+            color: #d63031;
+        }
+
+        .task-details {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+            line-height: 1.4;
+        }
+
+        .task-controls {
+            margin-top: 8px;
+            display: flex;
+            gap: 5px;
+        }
+
         /* Buttons */
-        button { cursor: pointer; padding: 6px 12px; border: none; border-radius: 4px; font-size: 0.9em; transition: background 0.2s; }
-        button:hover { opacity: 0.9; }
-        .btn-primary { background: #0984e3; color: white; width: 100%; padding: 10px; font-size: 1em; margin-bottom: 20px; }
-        .btn-start { background: #00b894; color: white; padding: 4px 8px; font-size: 0.8em; }
-        .btn-stop { background: #d63031; color: white; padding: 4px 8px; font-size: 0.8em; }
-        .btn-delete { background: #636e72; color: white; padding: 4px 8px; font-size: 0.8em; }
-        .btn-nav { background: #dfe6e9; color: #2d3436; }
+        button {
+            cursor: pointer;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9em;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-primary {
+            background: #0984e3;
+            color: white;
+            width: 100%;
+            padding: 10px;
+            font-size: 1em;
+            margin-bottom: 20px;
+        }
+
+        .btn-start {
+            background: #00b894;
+            color: white;
+            padding: 4px 8px;
+            font-size: 0.8em;
+        }
+
+        .btn-stop {
+            background: #d63031;
+            color: white;
+            padding: 4px 8px;
+            font-size: 0.8em;
+        }
+
+        .btn-delete {
+            background: #636e72;
+            color: white;
+            padding: 4px 8px;
+            font-size: 0.8em;
+        }
+
+        .btn-nav {
+            background: #dfe6e9;
+            color: #2d3436;
+        }
 
         /* Calendar */
-        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; flex: 1; }
-        .cal-head-day { text-align: center; font-weight: bold; padding: 10px; color: #666; }
-        .cal-day { background: white; border-radius: 8px; padding: 8px; min-height: 100px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
-        .cal-day:hover { border-color: #74b9ff; transform: translateY(-2px); }
-        .cal-day.selected { border-color: #0984e3; background: #f0f8ff; }
-        .cal-day.today { background: #fff8e1; }
-        .cal-day.empty { background: transparent; box-shadow: none; cursor: default; }
-        .cal-date { font-weight: bold; display: block; margin-bottom: 5px; color: #2d3436; }
-        
-        .cal-task-dot { display: none; } /* Remove dots */
-        
-        .cal-task-item { 
-            font-size: 0.75em; 
-            padding: 1px 4px; 
-            margin-bottom: 2px; 
-            border-radius: 2px; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            flex: 1;
+        }
+
+        .cal-head-day {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            color: #666;
+        }
+
+        .cal-day {
+            background: white;
+            border-radius: 8px;
+            padding: 8px;
+            min-height: 100px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .cal-day:hover {
+            border-color: #74b9ff;
+            transform: translateY(-2px);
+        }
+
+        .cal-day.selected {
+            border-color: #0984e3;
+            background: #f0f8ff;
+        }
+
+        .cal-day.today {
+            background: #fff8e1;
+        }
+
+        .cal-day.empty {
+            background: transparent;
+            box-shadow: none;
+            cursor: default;
+        }
+
+        .cal-date {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            color: #2d3436;
+        }
+
+        .cal-task-dot {
+            display: none;
+        }
+
+        /* Remove dots */
+
+        .cal-task-item {
+            font-size: 0.75em;
+            padding: 1px 4px;
+            margin-bottom: 2px;
+            border-radius: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             color: #333;
             cursor: pointer;
         }
-        .type-http .cal-task-item { background: #dff9fb; border-left: 2px solid #0984e3; }
-        .type-exe .cal-task-item { background: #ffcccc; border-left: 2px solid #d63031; }
-        .type-popup .cal-task-item { background: #d4edda; border-left: 2px solid #00b894; }
-        .type-countdown .cal-task-item { background: #ffeaa7; border-left: 2px solid #fdcb6e; }
-        .type-log .cal-task-item { background: #f1f2f6; border-left: 2px solid #636e72; color: #636e72; }
 
-        .cal-more { font-size: 0.7em; color: #999; text-align: right; padding-right: 2px; }
+        .type-http .cal-task-item {
+            background: #dff9fb;
+            border-left: 2px solid #0984e3;
+        }
+
+        .type-exe .cal-task-item {
+            background: #ffcccc;
+            border-left: 2px solid #d63031;
+        }
+
+        .type-popup .cal-task-item {
+            background: #d4edda;
+            border-left: 2px solid #00b894;
+        }
+
+        .type-countdown .cal-task-item {
+            background: #ffeaa7;
+            border-left: 2px solid #fdcb6e;
+        }
+
+        .type-log .cal-task-item {
+            background: #f1f2f6;
+            border-left: 2px solid #636e72;
+            color: #636e72;
+        }
+
+        .cal-more {
+            font-size: 0.7em;
+            color: #999;
+            text-align: right;
+            padding-right: 2px;
+        }
 
         /* Modal */
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
-        .modal { background: white; padding: 25px; border-radius: 8px; width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .modal-title { margin: 0; font-size: 1.2em; }
-        .btn-close { background: transparent; font-size: 1.5em; padding: 0; color: #999; }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .modal-title {
+            margin: 0;
+            font-size: 1.2em;
+        }
+
+        .btn-close {
+            background: transparent;
+            font-size: 1.5em;
+            padding: 0;
+            color: #999;
+        }
 
         /* Form Controls */
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 6px; font-weight: bold; color: #444; font-size: 0.9em; }
-        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
-        
-        /* Checkbox Styling */
-        .checkbox-group { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
-        input[type="checkbox"] { width: 18px; height: 18px; margin: 0; cursor: pointer; }
-        .checkbox-label { font-weight: bold; cursor: pointer; display: flex; align-items: center; }
+        .form-group {
+            margin-bottom: 15px;
+        }
 
-        .date-row { display: flex; gap: 15px; }
-        .date-row > div { flex: 1; }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: #444;
+            font-size: 0.9em;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        /* Checkbox Styling */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 0;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .date-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .date-row>div {
+            flex: 1;
+        }
 
         /* KV Editor */
-        .kv-row { display: flex; gap: 5px; margin-bottom: 5px; }
-        .btn-add-row { background: #00cec9; color: white; width: auto; font-size: 0.8em; padding: 4px 8px; }
-        .btn-remove-row { background: #ff7675; color: white; width: 30px; }
-        #config-fields { padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px dashed #ced4da; }
+        .kv-row {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+
+        .btn-add-row {
+            background: #00cec9;
+            color: white;
+            width: auto;
+            font-size: 0.8em;
+            padding: 4px 8px;
+        }
+
+        .btn-remove-row {
+            background: #ff7675;
+            color: white;
+            width: 30px;
+        }
+
+        #config-fields {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px dashed #ced4da;
+        }
 
         /* Mini Mode */
-        body.mini-mode .sidebar-left, 
-        body.mini-mode .main-content { display: none !important; }
-        body.mini-mode .sidebar-right { width: 100% !important; border: none; padding: 10px; }
-        
+        body.mini-mode .sidebar-left,
+        body.mini-mode .main-content {
+            display: none !important;
+        }
+
+        body.mini-mode .sidebar-right {
+            width: 100% !important;
+            border: none;
+            padding: 10px;
+        }
+
         /* Mini Mode Controls */
-        body.mini-mode .task-controls { display: flex !important; justify-content: flex-end; }
+        body.mini-mode .task-controls {
+            display: flex !important;
+            justify-content: flex-end;
+        }
+
         body.mini-mode .task-controls .btn-start,
         body.mini-mode .task-controls .btn-stop,
-        body.mini-mode .task-controls .btn-nav { display: none; }
-        body.mini-mode .task-controls .btn-delete { display: block; padding: 2px 6px; font-size: 0.75em; }
+        body.mini-mode .task-controls .btn-nav {
+            display: none;
+        }
 
-        body.mini-mode .btn-mini-toggle { 
-            position: fixed; 
-            top: 5px; 
-            right: 5px; 
-            background: rgba(0,0,0,0.1); 
-            border: none; 
-            border-radius: 50%; 
-            width: 30px; 
-            height: 30px; 
-            cursor: pointer; 
+        body.mini-mode .task-controls .btn-delete {
+            display: block;
+            padding: 2px 6px;
+            font-size: 0.75em;
+        }
+
+        body.mini-mode .btn-mini-toggle {
+            position: fixed;
+            top: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.1);
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
             z-index: 2000;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 1.2em;
         }
-        body.mini-mode .btn-mini-toggle:hover { background: rgba(0,0,0,0.2); }
+
+        body.mini-mode .btn-mini-toggle:hover {
+            background: rgba(0, 0, 0, 0.2);
+        }
 
         /* Sidebar Toolbar (inside sidebar-right) */
         .sidebar-toolbar {
@@ -133,8 +466,9 @@
             margin-bottom: 10px;
             flex-shrink: 0;
         }
+
         .sidebar-toolbar button {
-            background: rgba(0,0,0,0.08);
+            background: rgba(0, 0, 0, 0.08);
             border: none;
             border-radius: 50%;
             width: 30px;
@@ -146,8 +480,15 @@
             font-size: 1.1em;
             padding: 0;
         }
-        .sidebar-toolbar button:hover { background: rgba(0,0,0,0.15); }
-        .sidebar-toolbar button.active { background: #0984e3; color: white; }
+
+        .sidebar-toolbar button:hover {
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .sidebar-toolbar button.active {
+            background: #0984e3;
+            color: white;
+        }
 
         /* Clipboard Panel (inside sidebar, not fixed) */
         .clipboard-panel {
@@ -156,7 +497,10 @@
             flex: 1;
             overflow: hidden;
         }
-        .clipboard-panel.visible { display: flex; }
+
+        .clipboard-panel.visible {
+            display: flex;
+        }
 
         .clipboard-header {
             display: flex;
@@ -166,8 +510,21 @@
             border-bottom: 2px solid #eee;
             flex-shrink: 0;
         }
-        .clipboard-header h2 { margin: 0; font-size: 1.1em; color: #333; border: none; padding: 0; }
-        .btn-clear-all { background: #ff7675; color: white; font-size: 0.75em; padding: 4px 10px; }
+
+        .clipboard-header h2 {
+            margin: 0;
+            font-size: 1.1em;
+            color: #333;
+            border: none;
+            padding: 0;
+        }
+
+        .btn-clear-all {
+            background: #ff7675;
+            color: white;
+            font-size: 0.75em;
+            padding: 4px 10px;
+        }
 
         .clipboard-list {
             flex: 1;
@@ -176,6 +533,7 @@
             list-style: none;
             margin: 0;
         }
+
         .cb-item {
             border: 1px solid #eee;
             border-radius: 6px;
@@ -184,11 +542,13 @@
             background: #fafafa;
             position: relative;
         }
+
         .cb-item-time {
             font-size: 0.7em;
             color: #999;
             margin-bottom: 4px;
         }
+
         .cb-item-content {
             font-size: 0.85em;
             color: #333;
@@ -198,6 +558,7 @@
             overflow: hidden;
             line-height: 1.4;
         }
+
         .cb-item-content img {
             max-width: 100%;
             max-height: 100px;
@@ -205,14 +566,28 @@
             display: block;
             margin-top: 4px;
         }
+
         .cb-item-actions {
             display: flex;
             gap: 5px;
             margin-top: 8px;
             justify-content: flex-end;
         }
-        .btn-cb-copy { background: #00b894; color: white; font-size: 0.75em; padding: 3px 10px; }
-        .btn-cb-delete { background: #636e72; color: white; font-size: 0.75em; padding: 3px 10px; }
+
+        .btn-cb-copy {
+            background: #00b894;
+            color: white;
+            font-size: 0.75em;
+            padding: 3px 10px;
+        }
+
+        .btn-cb-delete {
+            background: #636e72;
+            color: white;
+            font-size: 0.75em;
+            padding: 3px 10px;
+        }
+
         .cb-empty {
             text-align: center;
             color: #999;
@@ -227,9 +602,13 @@
             flex: 1;
             overflow: hidden;
         }
-        .sidebar-tasks.hidden { display: none; }
+
+        .sidebar-tasks.hidden {
+            display: none;
+        }
     </style>
 </head>
+
 <body>
 
     <!-- 左侧栏：永久任务 -->
@@ -251,7 +630,7 @@
                 <button class="btn-nav" onclick="changeMonth(1)">下个月 ▶</button>
             </div>
         </div>
-        
+
         <!-- 星期头 -->
         <div style="display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 5px;">
             <div class="cal-head-day">日</div>
@@ -303,7 +682,7 @@
                 <h3 class="modal-title">创建新任务</h3>
                 <button class="btn-close" onclick="closeModal()">×</button>
             </div>
-            
+
             <div class="form-group">
                 <label>任务类型</label>
                 <select id="task-type">
@@ -314,7 +693,7 @@
                     <option value="countdown">⏰ 倒计时提醒</option>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label>任务名称</label>
                 <input type="text" id="task-name" placeholder="请输入任务名称">
@@ -350,7 +729,8 @@
                         <option value="day">天</option>
                     </select>
                 </div>
-                <small id="cron-preview" style="color: #999; margin-top: 5px; display: block;">Cron: */5 * * * * *</small>
+                <small id="cron-preview" style="color: #999; margin-top: 5px; display: block;">Cron: */5 * * * *
+                    *</small>
                 <input type="hidden" id="task-cron" value="*/5 * * * * *">
             </div>
 
@@ -359,11 +739,13 @@
 
             <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
                 <button onclick="closeModal()" style="background: #eee; color: #333;">取消</button>
-                <button onclick="createTask()" style="background: #0984e3; color: white; padding: 8px 20px;">确认创建</button>
+                <button onclick="createTask()"
+                    style="background: #0984e3; color: white; padding: 8px 20px;">确认创建</button>
             </div>
         </div>
     </div>
 
     <script src="../../dist/ui/renderer.js"></script>
 </body>
+
 </html>
