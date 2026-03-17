@@ -1,12 +1,12 @@
 name: Build & Release Latest
 
 # ────────────────────────────────────────────────────────────────
-# Trigger: every push to main keeps a single "latest" pre-release.
+# Trigger: every push to master keeps a single "latest" pre-release.
 # Old "latest" release is deleted first, then rebuilt and re-published.
 # ────────────────────────────────────────────────────────────────
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: write   # create / delete releases and upload assets
