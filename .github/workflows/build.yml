@@ -1,68 +1,127 @@
-name: Build & Release
+name: Build & Release Latest
 
+# ────────────────────────────────────────────────────────────────
+# Trigger: every push to main keeps a single "latest" pre-release.
+# Old "latest" release is deleted first, then rebuilt and re-published.
+# ────────────────────────────────────────────────────────────────
 on:
   push:
-    tags:
-      - 'v*'          # Trigger on version tags, e.g. v1.0.0, v2.3.1
+    branches: [main]
 
 permissions:
-  contents: write     # Required to create/update GitHub Releases
+  contents: write   # create / delete releases and upload assets
 
+# ────────────────────────────────────────────────────────────────
+# Step 1 — Delete old "latest" release before starting new builds.
+#           All build jobs wait for this to finish (needs: prepare).
+# ────────────────────────────────────────────────────────────────
 jobs:
+  prepare:
+    name: Delete old "latest" release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete release + tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest \
+            --yes \
+            --cleanup-tag \
+            --repo "$GITHUB_REPOSITORY" || true   # ignore error if release doesn't exist yet
+
+# ────────────────────────────────────────────────────────────────
+# Step 2 — Build for all three platforms in parallel.
+#           Artifacts are saved to the workflow run (not the release yet).
+# ────────────────────────────────────────────────────────────────
   build:
-    name: Build on ${{ matrix.os }}
+    name: Build (${{ matrix.os }})
+    needs: prepare
     runs-on: ${{ matrix.os }}
 
     strategy:
-      fail-fast: false   # Continue other platforms even if one fails
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
             platform_flag: --win
-            artifact_pattern: dist-release/*.exe dist-release/*.zip
           - os: ubuntu-latest
             platform_flag: --linux
-            artifact_pattern: dist-release/*.AppImage dist-release/*.deb
           - os: macos-latest
             platform_flag: --mac
-            artifact_pattern: dist-release/*.dmg
 
     steps:
-      # ── 1. Checkout ──────────────────────────────────────────────────────
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # ── 2. Node.js ───────────────────────────────────────────────────────
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      # ── 3. Install dependencies ──────────────────────────────────────────
       - name: Install dependencies
         run: npm ci
 
-      # ── 4. TypeScript compile ────────────────────────────────────────────
       - name: Compile TypeScript
         run: npm run build
 
-      # ── 5. Package with electron-builder ─────────────────────────────────
-      # GH_TOKEN is used by electron-builder to upload artifacts to the release.
-      # It is automatically provided by GitHub Actions — no manual secret needed.
-      - name: Package application (${{ matrix.os }})
+      - name: Package with electron-builder
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Disable code signing on CI (set your own certs in Secrets to enable)
+          # Disable OS code-signing on CI (add certs to Secrets to enable)
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npx electron-builder ${{ matrix.platform_flag }} --publish always
+          # electron-builder needs GH_TOKEN to read release info even with --publish never
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder ${{ matrix.platform_flag }} --publish never
 
-      # ── 6. Upload artifacts ───────────────────────────────────────────────
-      # electron-builder with --publish always uploads directly to the Release,
-      # but we also keep artifacts in the workflow run for traceability.
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.os }}
-          path: dist-release/
+          name: dist-${{ matrix.os }}
+          # Only upload user-facing files; exclude electron-builder metadata files
+          path: |
+            dist-release/*.exe
+            dist-release/*.dmg
+            dist-release/*.AppImage
+            dist-release/*.deb
           if-no-files-found: warn
+
+# ────────────────────────────────────────────────────────────────
+# Step 3 — Collect all artifacts and publish to a new "latest" release.
+#           Runs only after all three build jobs succeed.
+# ────────────────────────────────────────────────────────────────
+  release:
+    name: Publish "latest" release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true   # flatten into a single directory
+          path: release-files/
+
+      - name: List artifacts (debug)
+        run: ls -lh release-files/
+
+      - name: Create "latest" pre-release and upload assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMIT_SHORT="${GITHUB_SHA::7}"
+          BUILD_TIME="$(date -u '+%Y-%m-%d %H:%M UTC')"
+
+          gh release create latest \
+            --prerelease \
+            --title "Latest Build (${BUILD_TIME})" \
+            --notes "**Auto-built from commit [\`${COMMIT_SHORT}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})**
+
+          Built: ${BUILD_TIME}
+          Branch: \`${{ github.ref_name }}\`
+
+          > This is a rolling pre-release. It is overwritten on every push to \`main\`." \
+            --repo "$GITHUB_REPOSITORY"
+
+          # Upload all downloaded artifacts, overwriting any same-named files
+          find release-files -type f | xargs -I{} \
+            gh release upload latest {} --clobber --repo "$GITHUB_REPOSITORY"
