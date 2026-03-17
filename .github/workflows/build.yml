@@ -46,8 +46,6 @@ jobs:
             platform_flag: --win
           - os: ubuntu-latest
             platform_flag: --linux
-          - os: macos-latest
-            platform_flag: --mac
 
     steps:
       - name: Checkout
