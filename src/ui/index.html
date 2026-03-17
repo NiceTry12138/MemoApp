@@ -652,6 +652,7 @@
         <!-- 按钮行 -->
         <div class="sidebar-toolbar">
             <button id="btn-clipboard-toggle" title="粘贴板历史">📋</button>
+            <button id="btn-settings" title="设置">⚙️</button>
             <button id="btn-mini-toggle" title="切换模式">⛶</button>
         </div>
 
@@ -686,11 +687,7 @@
             <div class="form-group">
                 <label>任务类型</label>
                 <select id="task-type">
-                    <option value="http">HTTP 网络请求</option>
-                    <option value="exe">运行本地程序 (EXE)</option>
-                    <option value="popup">系统弹窗提醒</option>
-                    <option value="log">日志/备忘录</option>
-                    <option value="countdown">⏰ 倒计时提醒</option>
+                    <!-- Options populated dynamically by renderer.ts via TaskWidgetManager -->
                 </select>
             </div>
 
@@ -745,7 +742,57 @@
         </div>
     </div>
 
+    <!-- 设置模态框 -->
+    <div class="modal-overlay" id="settings-modal" style="display:none;">
+        <div class="modal" style="max-width:420px;">
+            <div class="modal-header">
+                <h3 class="modal-title">⚙️ 设置</h3>
+                <button class="btn-close" onclick="closeSettingsModal()">×</button>
+            </div>
+
+            <!-- 任务类型排序 -->
+            <div style="margin-bottom:24px;">
+                <h4 style="margin:0 0 8px; color:#555; font-size:0.9em; font-weight:600;">任务类型显示顺序</h4>
+                <p style="margin:0 0 10px; color:#999; font-size:0.8em;">拖动行来调整顺序，同步影响新建任务的类型下拉框</p>
+                <ul id="type-order-list" style="
+                    list-style:none; padding:0; margin:0;
+                    border:1px solid #e0e0e0; border-radius:6px; overflow:hidden;">
+                    <!-- JS 注入 -->
+                </ul>
+            </div>
+
+            <!-- 关闭行为 -->
+            <div style="margin-bottom:24px;">
+                <h4 style="margin:0 0 10px; color:#555; font-size:0.9em; font-weight:600;">关闭窗口时</h4>
+                <label for="close-quit" style="display:flex; align-items:center;
+                            padding:10px 14px; margin-bottom:8px; cursor:pointer;
+                            border:1px solid #e8e8e8; border-radius:6px;
+                            transition:background 0.15s;"
+                       onmouseover="this.style.background='#f5f9ff'" onmouseout="this.style.background=''">
+                    <span style="flex:1; white-space:nowrap; line-height:1;">直接退出应用</span>
+                    <input type="radio" name="close-action" id="close-quit" value="quit"
+                           style="width:16px; height:16px; margin:0; flex-shrink:0; cursor:pointer;">
+                </label>
+                <label for="close-tray" style="display:flex; align-items:center;
+                            padding:10px 14px; cursor:pointer;
+                            border:1px solid #e8e8e8; border-radius:6px;
+                            transition:background 0.15s;"
+                       onmouseover="this.style.background='#f5f9ff'" onmouseout="this.style.background=''">
+                    <span style="flex:1; white-space:nowrap; line-height:1;">最小化到系统托盘</span>
+                    <input type="radio" name="close-action" id="close-tray" value="tray"
+                           style="width:16px; height:16px; margin:0; flex-shrink:0; cursor:pointer;">
+                </label>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button onclick="closeSettingsModal()" style="background:#eee; color:#333;">取消</button>
+                <button onclick="saveSettings()" style="background:#0984e3; color:white; padding:8px 20px;">保存</button>
+            </div>
+        </div>
+    </div>
+
     <script src="../../dist/ui/renderer.js"></script>
+
 </body>
 
 </html>

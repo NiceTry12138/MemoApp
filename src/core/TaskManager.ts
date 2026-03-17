@@ -2,29 +2,25 @@ import { BaseTask } from './BaseTask';
 import { ScheduledTask } from './ScheduledTask';
 import { CountdownTask } from '../tasks/CountdownTask';
 import { TaskRegistry } from './TaskRegistry';
-import { IRepository } from '../persistence/IRepository';
-import { JsonFileRepository } from '../persistence/JsonFileRepository';
+import { AppStore } from '../persistence/AppStore';
+import { ITaskDefinition } from './types';
 
-export interface ITaskDefinition {
-    id: string;
-    type: string;   // Use string (not a union) so new types work without changing this file
-    config: any;
-    status: 'running' | 'stopped';
-}
+// Re-export for backward compatibility (main.ts imports this type)
+export { ITaskDefinition } from './types';
 
 export class TaskManager {
     private tasks: Map<string, BaseTask> = new Map();
     private taskDefinitions: Map<string, ITaskDefinition> = new Map();
-    private readonly repository: IRepository<ITaskDefinition[]>;
+    private readonly store: AppStore;
 
-    constructor(repository?: IRepository<ITaskDefinition[]>) {
-        this.repository = repository ?? new JsonFileRepository<ITaskDefinition[]>('tasks.json');
+    constructor(store: AppStore) {
+        this.store = store;
         this.loadTasks();
     }
 
     private loadTasks(): void {
-        const definitions = this.repository.load();
-        if (!definitions) return;
+        const definitions = this.store.getTasks();
+        if (!definitions || definitions.length === 0) return;
 
         definitions.forEach(def => {
             if (!TaskRegistry.has(def.type)) {
@@ -52,7 +48,7 @@ export class TaskManager {
     }
 
     private saveTasks(): void {
-        this.repository.save(Array.from(this.taskDefinitions.values()));
+        this.store.saveTasks(Array.from(this.taskDefinitions.values()));
     }
 
     public createTask(type: string, config: any): string {

@@ -1,21 +1,159 @@
-// Single import registers all task widgets with TaskWidgetManager (see src/ui/widgets/index.ts to add new ones)
-import './widgets';
-import { TaskWidgetManager } from './TaskWidgetManager';
+// =============================================================================
+// TaskWidgetManager — inlined here because renderer.ts runs in Electron renderer
+// (nodeIntegration: false), where CommonJS require() is unavailable. Keeping this
+// file import-free ensures no require() call is emitted in the compiled output.
+// To add a new task type: add a register() call below, then add a matching
+// TaskRegistry.register() call in src/tasks/YourTask.ts.
+// =============================================================================
 
-// Define API (no export, pure interface)
-interface IElectronAPI {
-    getTasks: () => Promise<any[]>;
-    createTask: (type: string, config: any) => Promise<any>;
-    updateTask: (id: string, type: string, config: any) => Promise<any>;
-    toggleMiniMode: (isMini: boolean) => Promise<void>;
-    startTask: (id: string) => Promise<boolean>;
-    stopTask: (id: string) => Promise<boolean>;
-    deleteTask: (id: string) => Promise<boolean>;
-    getClipboardHistory: () => Promise<any[]>;
-    clipboardCopy: (id: string) => Promise<boolean>;
-    clipboardDelete: (id: string) => Promise<boolean>;
-    clipboardClear: () => Promise<boolean>;
+interface ITaskWidgetDescriptor {
+    label: string;
+    template: string;
+    readConfig: () => Record<string, any>;
+    fillConfig: (config: Record<string, any>) => void;
 }
+
+const TaskWidgetManager = new class {
+    private readonly map = new Map<string, ITaskWidgetDescriptor>();
+    register(type: string, d: ITaskWidgetDescriptor) { this.map.set(type, d); }
+    get(type: string) { return this.map.get(type); }
+    getAll(): [string, ITaskWidgetDescriptor][] { return [...this.map.entries()]; }
+}();
+
+// --- KV-row helpers (used by HTTP widget) ---
+function createKvRowHTML(key = '', value = '') {
+    return `<div class="kv-row">
+        <input type="text" class="kv-key" placeholder="键 (Key)" value="${key}">
+        <input type="text" class="kv-value" placeholder="值 (Value)" value="${value}">
+        <button type="button" class="btn-remove-row" onclick="this.parentElement.remove()">×</button>
+    </div>`;
+}
+function getKvData(containerId: string): Record<string, string> {
+    const container = document.getElementById(containerId);
+    if (!container) return {};
+    const data: Record<string, string> = {};
+    container.querySelectorAll('.kv-row').forEach(row => {
+        const key = (row.querySelector('.kv-key') as HTMLInputElement).value.trim();
+        const val = (row.querySelector('.kv-value') as HTMLInputElement).value.trim();
+        if (key) data[key] = val;
+    });
+    return data;
+}
+
+// --- Widget registrations (one block per task type) ---
+
+TaskWidgetManager.register('http', {
+    label: '🌐 HTTP 请求',
+    template: `
+        <div class="form-group"><label>请求地址 (URL)</label><input type="text" id="conf-url" placeholder="https://api.example.com"></div>
+        <div class="form-group"><label>请求方法</label>
+            <select id="conf-method"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
+        </div>
+        <div class="form-group">
+            <label>请求头 (Headers) <button type="button" class="btn-add-row" onclick="addKvRow('headers-container')">+ 添加</button></label>
+            <div id="headers-container"></div>
+        </div>
+        <div class="form-group">
+            <label>Cookie <button type="button" class="btn-add-row" onclick="addKvRow('cookies-container')">+ 添加</button></label>
+            <div id="cookies-container"></div>
+        </div>
+        <div class="form-group"><label>请求体 (JSON)</label><textarea id="conf-body" rows="3">{}</textarea></div>
+    `,
+    readConfig() {
+        const config: Record<string, any> = {
+            url: (document.getElementById('conf-url') as HTMLInputElement).value,
+            method: (document.getElementById('conf-method') as HTMLSelectElement).value,
+            headers: getKvData('headers-container'),
+            cookies: getKvData('cookies-container'),
+        };
+        try { config.body = JSON.parse((document.getElementById('conf-body') as HTMLTextAreaElement).value); }
+        catch { config.body = {}; }
+        return config;
+    },
+    fillConfig(config) {
+        (document.getElementById('conf-url') as HTMLInputElement).value = config['url'] ?? '';
+        (document.getElementById('conf-method') as HTMLSelectElement).value = config['method'] ?? 'GET';
+        (document.getElementById('conf-body') as HTMLTextAreaElement).value = JSON.stringify(config['body'] ?? {}, null, 2);
+        const hc = document.getElementById('headers-container');
+        if (hc && config['headers']) { hc.innerHTML = ''; Object.entries(config['headers']).forEach(([k, v]) => hc.insertAdjacentHTML('beforeend', createKvRowHTML(k, v as string))); }
+        const cc = document.getElementById('cookies-container');
+        if (cc && config['cookies']) { cc.innerHTML = ''; Object.entries(config['cookies']).forEach(([k, v]) => cc.insertAdjacentHTML('beforeend', createKvRowHTML(k, v as string))); }
+    },
+});
+
+TaskWidgetManager.register('exe', {
+    label: '⚙️ 运行程序',
+    template: `
+        <div class="form-group"><label>程序路径</label><input type="text" id="conf-path" placeholder="C:\\Windows\\System32\\calc.exe"></div>
+        <div class="form-group"><label>启动参数 (空格分隔)</label><input type="text" id="conf-args" placeholder="/c dir"></div>
+    `,
+    readConfig() {
+        const argsStr = (document.getElementById('conf-args') as HTMLInputElement).value;
+        return { filePath: (document.getElementById('conf-path') as HTMLInputElement).value, args: argsStr.split(' ').filter(s => s.length > 0) };
+    },
+    fillConfig(config) {
+        (document.getElementById('conf-path') as HTMLInputElement).value = config['filePath'] ?? '';
+        (document.getElementById('conf-args') as HTMLInputElement).value = (config['args'] ?? []).join(' ');
+    },
+});
+
+TaskWidgetManager.register('popup', {
+    label: '🔔 系统弹窗',
+    template: `
+        <div class="form-group"><label>弹窗标题</label><input type="text" id="conf-title" placeholder="提醒"></div>
+        <div class="form-group"><label>弹窗内容</label><input type="text" id="conf-message" placeholder="该喝水了！"></div>
+    `,
+    readConfig() {
+        return { title: (document.getElementById('conf-title') as HTMLInputElement).value, message: (document.getElementById('conf-message') as HTMLInputElement).value };
+    },
+    fillConfig(config) {
+        (document.getElementById('conf-title') as HTMLInputElement).value = config['title'] ?? '';
+        (document.getElementById('conf-message') as HTMLInputElement).value = config['message'] ?? '';
+    },
+});
+
+TaskWidgetManager.register('log', {
+    label: '📝 日志/备忘录',
+    template: `<div class="form-group"><label>日志内容</label><textarea id="conf-content" rows="5" placeholder="在此输入备忘录内容..."></textarea></div>`,
+    readConfig() { return { content: (document.getElementById('conf-content') as HTMLTextAreaElement).value }; },
+    fillConfig(config) { (document.getElementById('conf-content') as HTMLTextAreaElement).value = config['content'] ?? ''; },
+});
+
+TaskWidgetManager.register('countdown', {
+    label: '⏰ 倒计时提醒',
+    template: `
+        <div class="form-group"><label>倒计时时长</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="number" id="conf-cd-days" value="0" min="0" style="flex:1;"><span>天</span>
+                <input type="number" id="conf-cd-hours" value="0" min="0" max="23" style="flex:1;"><span>时</span>
+                <input type="number" id="conf-cd-minutes" value="1" min="0" max="59" style="flex:1;"><span>分</span>
+                <input type="number" id="conf-cd-seconds" value="0" min="0" max="59" style="flex:1;"><span>秒</span>
+            </div>
+        </div>
+        <div class="form-group"><label>弹窗标题</label><input type="text" id="conf-cd-title" placeholder="倒计时提醒"></div>
+        <div class="form-group"><label>弹窗内容</label><input type="text" id="conf-cd-message" placeholder="时间到！"></div>
+    `,
+    readConfig() {
+        return {
+            days:    parseInt((document.getElementById('conf-cd-days') as HTMLInputElement).value) || 0,
+            hours:   parseInt((document.getElementById('conf-cd-hours') as HTMLInputElement).value) || 0,
+            minutes: parseInt((document.getElementById('conf-cd-minutes') as HTMLInputElement).value) || 0,
+            seconds: parseInt((document.getElementById('conf-cd-seconds') as HTMLInputElement).value) || 0,
+            title:   (document.getElementById('conf-cd-title') as HTMLInputElement).value || '倒计时提醒',
+            message: (document.getElementById('conf-cd-message') as HTMLInputElement).value || '时间到！',
+        };
+    },
+    fillConfig(config) {
+        (document.getElementById('conf-cd-days') as HTMLInputElement).value    = String(config['days'] ?? 0);
+        (document.getElementById('conf-cd-hours') as HTMLInputElement).value   = String(config['hours'] ?? 0);
+        (document.getElementById('conf-cd-minutes') as HTMLInputElement).value = String(config['minutes'] ?? 0);
+        (document.getElementById('conf-cd-seconds') as HTMLInputElement).value = String(config['seconds'] ?? 0);
+        (document.getElementById('conf-cd-title') as HTMLInputElement).value   = config['title'] ?? '';
+        (document.getElementById('conf-cd-message') as HTMLInputElement).value = config['message'] ?? '';
+    },
+});
+
+// =============================================================================
 
 console.log('Renderer script initializing...');
 
@@ -42,16 +180,8 @@ const currentMonthLabel = document.getElementById('current-month-label') as HTML
 const selectedDateLabel = document.getElementById('selected-date-label') as HTMLHeadingElement;
 
 // State
-let currentDate = new Date(); // Month view
-let selectedDate = new Date(); // Selected day (default today)
-
-// Populate type select from registry (runs after all widgets are imported)
-TaskWidgetManager.getAll().forEach(([type, desc]) => {
-    const option = document.createElement('option');
-    option.value = type;
-    option.textContent = desc.label;
-    taskTypeSelect.appendChild(option);
-});
+let currentDate = new Date();
+let selectedDate = new Date();
 
 // --- Helper Functions ---
 
@@ -65,7 +195,14 @@ function areDatesEqual(d1: Date, d2: Date): boolean {
         d1.getDate() === d2.getDate();
 }
 
-// CONFIG_TEMPLATES removed — templates are now stored in each widget file via TaskWidgetManager
+// Populate task-type <select> from registry (labels defined in each register() call above).
+// index.html intentionally leaves the <select> empty; options are built here at runtime.
+TaskWidgetManager.getAll().forEach(([type, desc]) => {
+    const option = document.createElement('option');
+    option.value = type;
+    option.textContent = desc.label;
+    taskTypeSelect.appendChild(option);
+});
 
 (window as any).editTask = (id: string) => {
     const tasks = (window as any).allTasksCache || [];
@@ -126,17 +263,6 @@ function areDatesEqual(d1: Date, d2: Date): boolean {
         TaskWidgetManager.get(task.type)?.fillConfig(task.config);
     }, 0);
 };
-
-// Helper for KV with values
-function createKvRowHTML(key: string = '', value: string = '') {
-    return `
-        <div class="kv-row">
-            <input type="text" class="kv-key" placeholder="键 (Key)" value="${key}">
-            <input type="text" class="kv-value" placeholder="值 (Value)" value="${value}">
-            <button type="button" class="btn-remove-row" onclick="this.parentElement.remove()">×</button>
-        </div>
-    `;
-}
 
 // Global Handlers
 (window as any).addKvRow = (containerId: string) => {
@@ -301,20 +427,8 @@ if (btnMiniToggle) {
     }
 };
 
-function getKvData(containerId: string): Record<string, string> {
-    const container = document.getElementById(containerId);
-    if (!container) return {};
-    const data: Record<string, string> = {};
-    const rows = container.querySelectorAll('.kv-row');
-    rows.forEach(row => {
-        const key = (row.querySelector('.kv-key') as HTMLInputElement).value.trim();
-        const value = (row.querySelector('.kv-value') as HTMLInputElement).value.trim();
-        if (key) data[key] = value;
-    });
-    return data;
-}
-
 // --- UI Logic ---
+
 
 function updateUIState() {
     const type = taskTypeSelect.value;
@@ -605,11 +719,37 @@ function createListItem(task: any) {
     try { await (window as any).electronAPI.deleteTask(id); loadTasks(); } catch (e) { console.error(e); }
 };
 
-// Initial Load
-updateUIState();
-updateCron();
-loadTasks();
-setInterval(loadTasks, 5000); // Auto refresh
+// Initial Load — apply saved settings first, then load tasks
+async function initApp() {
+    // Load settings and reorder the select to match saved order
+    try {
+        const settings = await (window as any).electronAPI.getSettings();
+        applyTaskTypeOrder(settings.taskTypeOrder);
+    } catch (e) {
+        console.warn('Could not load settings:', e);
+    }
+    updateUIState();
+    updateCron();
+    loadTasks();
+    setInterval(loadTasks, 5000);
+}
+initApp();
+
+/** Reorder taskTypeSelect options to match the given type key order. */
+function applyTaskTypeOrder(order: string[]) {
+    if (!order || order.length === 0) return;
+    // Collect existing options keyed by value
+    const optMap: Record<string, HTMLOptionElement> = {};
+    Array.from(taskTypeSelect.options).forEach(o => { optMap[o.value] = o; });
+    // Clear and re-append in new order, appending any unknowns at end
+    taskTypeSelect.innerHTML = '';
+    const seen = new Set<string>();
+    order.forEach(type => {
+        if (optMap[type]) { taskTypeSelect.appendChild(optMap[type]); seen.add(type); }
+    });
+    // Append any registered types not in saved order (e.g. new types added later)
+    Object.keys(optMap).forEach(type => { if (!seen.has(type)) taskTypeSelect.appendChild(optMap[type]); });
+}
 
 // --- Clipboard Panel Logic ---
 
@@ -700,3 +840,98 @@ async function renderClipboardHistory(): Promise<void> {
         clipboardList.appendChild(li);
     });
 }
+
+// =============================================================================
+// Settings Panel
+// =============================================================================
+
+const settingsModal = document.getElementById('settings-modal') as HTMLDivElement;
+const btnSettings = document.getElementById('btn-settings') as HTMLButtonElement;
+const typeOrderList = document.getElementById('type-order-list') as HTMLUListElement;
+
+// Drag state
+let dragSrcEl: HTMLLIElement | null = null;
+
+btnSettings.addEventListener('click', openSettingsModal);
+
+async function openSettingsModal() {
+    settingsModal.style.display = 'flex';
+
+    // Load current settings
+    let settings: any = { taskTypeOrder: [], closeAction: 'quit' };
+    try { settings = await (window as any).electronAPI.getSettings(); } catch (_) {}
+
+    // Build draggable list from current select order (reflects any previously saved sort)
+    typeOrderList.innerHTML = '';
+    const currentOrder = Array.from(taskTypeSelect.options).map(o => ({ value: o.value, label: o.textContent || o.value }));
+    currentOrder.forEach(({ value, label }) => {
+        const li = buildOrderItem(value, label);
+        typeOrderList.appendChild(li);
+    });
+
+    // Set close-action radio
+    const closeAction = settings.closeAction || 'quit';
+    (document.getElementById('close-quit') as HTMLInputElement).checked = closeAction === 'quit';
+    (document.getElementById('close-tray') as HTMLInputElement).checked = closeAction === 'tray';
+}
+
+function buildOrderItem(value: string, label: string): HTMLLIElement {
+    const li = document.createElement('li');
+    li.dataset['type'] = value;
+    li.style.cssText = [
+        'display:flex', 'align-items:center', 'gap:10px',
+        'padding:10px 14px', 'background:#fff', 'cursor:grab',
+        'border-bottom:1px solid #f0f0f0', 'user-select:none',
+        'transition:background 0.15s'
+    ].join(';');
+    li.draggable = true;
+    li.innerHTML = `<span style="color:#bbb; font-size:1.1em; cursor:grab;">☰</span><span>${label}</span>`;
+
+    li.addEventListener('dragstart', (e) => {
+        dragSrcEl = li;
+        li.style.opacity = '0.4';
+        e.dataTransfer!.effectAllowed = 'move';
+    });
+    li.addEventListener('dragend', () => {
+        li.style.opacity = '1';
+        typeOrderList.querySelectorAll('li').forEach(el => (el as HTMLElement).style.background = '#fff');
+    });
+    li.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer!.dropEffect = 'move';
+        li.style.background = '#e8f4fd';
+    });
+    li.addEventListener('dragleave', () => { li.style.background = '#fff'; });
+    li.addEventListener('drop', (e) => {
+        e.preventDefault();
+        li.style.background = '#fff';
+        if (dragSrcEl && dragSrcEl !== li) {
+            // Swap in DOM: insert dragSrc before the drop target
+            const allItems = Array.from(typeOrderList.children);
+            const srcIdx = allItems.indexOf(dragSrcEl);
+            const dstIdx = allItems.indexOf(li);
+            if (srcIdx < dstIdx) typeOrderList.insertBefore(dragSrcEl, li.nextSibling);
+            else typeOrderList.insertBefore(dragSrcEl, li);
+        }
+    });
+    return li;
+}
+
+(window as any).closeSettingsModal = () => {
+    settingsModal.style.display = 'none';
+};
+
+(window as any).saveSettings = async () => {
+    // Read new type order from the drag list
+    const newOrder = Array.from(typeOrderList.querySelectorAll('li')).map(li => (li as HTMLElement).dataset['type']!);
+    // Read close action
+    const closeAction = (document.querySelector('input[name="close-action"]:checked') as HTMLInputElement)?.value || 'quit';
+
+    const settings = { taskTypeOrder: newOrder, closeAction };
+    await (window as any).electronAPI.saveSettings(settings);
+
+    // Immediately apply the new order to the select
+    applyTaskTypeOrder(newOrder);
+
+    (window as any).closeSettingsModal();
+};

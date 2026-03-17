@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent, Tray, Menu, nativeImag
 import * as path from 'path';
 import { TaskManager } from './core/TaskManager';
 import { ClipboardManager } from './core/ClipboardManager';
+import { SettingsManager } from './core/SettingsManager';
+import { AppStore } from './persistence/AppStore';
 
 // Single import registers all task types with TaskRegistry (see src/tasks/index.ts to add new ones)
 import './tasks';
@@ -10,19 +12,18 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;  // 标记是否真正退出（区分关闭窗口 vs 退出应用）
 
-const taskManager = new TaskManager();
+// Single AppStore — tasks and settings persisted together in app_data.json.
+// Swap the backend by passing a different IRepository<IAppModel> to AppStore().
+const appStore = new AppStore();
+const taskManager = new TaskManager(appStore);
+const settingsManager = new SettingsManager(appStore);
 const clipboardManager = new ClipboardManager();
 
 // --- 生成托盘图标 ---
-// 使用 nativeImage 从 Data URL 创建一个 16x16 的简易图标
-// 在正式项目中建议替换为一个 .ico/.png 文件
 function createTrayIcon(): Electron.NativeImage {
-    // 16x16 蓝色方块图标 (PNG data URL)
-    const iconDataUrl = 'data:image/png;base64,' +
-        'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMklEQVQ4T2P8' +
-        'z8BQz0BAwMBAAGCmQYYGBgYmBgYGRkIMoMoLjAwMDEwMDIwEGUCVFwAAXQ' +
-        'QJEapzVbQAAAAASUVORK5CYII=';
-    return nativeImage.createFromDataURL(iconDataUrl);
+    // 使用项目自带图标文件
+    const iconPath = path.join(__dirname, '../src/assets/tray.png');
+    return nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
 }
 
 // --- 创建系统托盘 ---
@@ -92,11 +93,17 @@ function createWindow() {
 
     // mainWindow.webContents.openDevTools();
 
-    // 拦截窗口关闭事件：最小化到托盘，而不是退出
+    // 拦截窗口关闭事件：根据设置决定是退出还是隐藏到托盘
     mainWindow.on('close', (event) => {
-        if (!isQuitting) {
-            event.preventDefault();    // 阻止默认关闭行为
-            mainWindow?.hide();        // 隐藏窗口
+        if (isQuitting) return; // app.quit() 触发的，直接放行
+        const { closeAction } = settingsManager.load();
+        if (closeAction === 'tray') {
+            event.preventDefault();
+            mainWindow?.hide();
+        } else {
+            // 'quit' ：直接退出
+            isQuitting = true;
+            app.quit();
         }
     });
 
@@ -198,5 +205,16 @@ ipcMain.handle('clipboard-delete', async (event: IpcMainInvokeEvent, id: string)
 
 ipcMain.handle('clipboard-clear', async () => {
     clipboardManager.clearHistory();
+    return true;
+});
+
+// --- Settings IPC Handlers ---
+
+ipcMain.handle('get-settings', async () => {
+    return settingsManager.load();
+});
+
+ipcMain.handle('save-settings', async (event: IpcMainInvokeEvent, settings: any) => {
+    settingsManager.save(settings);
     return true;
 });

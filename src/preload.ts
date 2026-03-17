@@ -14,4 +14,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clipboardCopy: (id: string) => ipcRenderer.invoke('clipboard-copy', id),
     clipboardDelete: (id: string) => ipcRenderer.invoke('clipboard-delete', id),
     clipboardClear: () => ipcRenderer.invoke('clipboard-clear'),
+
+    // Settings
+    getSettings: () => ipcRenderer.invoke('get-settings'),
+    saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
 });

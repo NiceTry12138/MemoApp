@@ -1,0 +1,13 @@
+{
+  "tasks": [],
+  "settings": {
+    "taskTypeOrder": [
+      "log",
+      "countdown",
+      "http",
+      "popup",
+      "exe"
+    ],
+    "closeAction": "quit"
+  }
+}
