@@ -46,6 +46,8 @@ jobs:
             platform_flag: --win
           - os: ubuntu-latest
             platform_flag: --linux
+          - os: macos-latest
+            platform_flag: --mac
 
     steps:
       - name: Checkout
@@ -69,6 +71,9 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           # electron-builder needs GH_TOKEN to read release info even with --publish never
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Force electron-builder tool binaries (e.g. dmg-builder) to download from
+          # GitHub releases instead of npmmirror, which does not host these files.
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
         run: npx electron-builder ${{ matrix.platform_flag }} --publish never
 
       - name: Upload build artifacts
